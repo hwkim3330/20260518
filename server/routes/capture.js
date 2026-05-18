@@ -41,12 +41,15 @@ router.get('/capture/status', async (req, res) => {
   } catch (err) { workerErr(res, err); }
 });
 
-// GET /api/capture/packets
+// GET /api/capture/packets?limit=500&offset=0
 router.get('/capture/packets', async (req, res) => {
   try {
-    const limit = Number(req.query.limit ?? 1000);
-    const data  = await req.app.locals.localCmd('getCaptures', { limit });
-    res.json({ ok: true, rows: data?.rows ?? [] });
+    const limit  = Number(req.query.limit  ?? 1000);
+    const offset = Number(req.query.offset ?? 0);
+    const data   = await req.app.locals.localCmd('getCaptures', { limit, offset });
+    // C# returns { rows: [...], total: N }  (older builds may use "packets" key)
+    const rows = data?.rows ?? data?.packets ?? [];
+    res.json({ ok: true, rows, total: data?.total ?? rows.length });
   } catch (err) { workerErr(res, err); }
 });
 
@@ -86,8 +89,9 @@ router.post('/capture', async (req, res) => {
     await req.app.locals.localCmd('startCapture', { interfaces }, 10000);
     await new Promise(r => setTimeout(r, Math.min(timeoutMs, 30000)));
     await req.app.locals.localCmd('stopCapture', {});
-    const data = await req.app.locals.localCmd('getCaptures', { limit });
-    res.json({ ok: true, rows: data?.rows ?? [] });
+    const data = await req.app.locals.localCmd('getCaptures', { limit, offset: 0 });
+    const rows = data?.rows ?? data?.packets ?? [];
+    res.json({ ok: true, rows, total: data?.total ?? rows.length });
   } catch (err) { workerErr(res, err); }
 });
 

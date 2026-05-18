@@ -244,7 +244,7 @@ public class LabWorkerService : IDisposable
             "startcapture"   => await StartCaptureAsync(payload),
             "stopcapture"    => StopCaptureCmd(),
             "clearcapture"   => ClearCaptureCmd(),
-            "getcaptures"    => GetCaptures(),
+            "getcaptures"    => GetCaptures(payload),
             "seriallist"     => SerialList(),
             "serialstatus"   => SerialStatus(),
             "serialopen"     => SerialOpen(payload),
@@ -592,10 +592,11 @@ public class LabWorkerService : IDisposable
     {
         if (ct.IsCancellationRequested) return;
 
-        var raw   = e.GetPacket();
-        var no    = Interlocked.Increment(ref _captureSeq);
-        var ts    = (DateTime.Now - captureStart).TotalSeconds;
-        var iface = ResolveDeviceName(sender as ILiveDevice);
+        var raw      = e.GetPacket();
+        var no       = Interlocked.Increment(ref _captureSeq);
+        var ts       = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0;
+        var iface    = ResolveDeviceName(sender as ILiveDevice);
+        var frameHex = Convert.ToHexString(raw.Data).ToLowerInvariant();
 
         var decoded = DecodeBytes(raw.Data);
 
@@ -605,6 +606,7 @@ public class LabWorkerService : IDisposable
             ["timestamp"] = ts,
             ["interface"] = iface,
             ["length"]    = raw.Data.Length,
+            ["frameHex"]  = frameHex,
             ["decoded"]   = decoded
         };
 
@@ -674,14 +676,17 @@ public class LabWorkerService : IDisposable
     // Command: getcaptures
     // =========================================================================
 
-    private JsonObject GetCaptures()
+    private JsonObject GetCaptures(JsonObject? payload = null)
     {
-        var max = 500;
-        var packets = _captureBuffer.TakeLast(max).ToList();
+        var limit  = payload?["limit"] ?.GetValue<int>() is { } l && l > 0 ? l : 10000;
+        var offset = payload?["offset"]?.GetValue<int>() is { } o && o >= 0 ? o : 0;
+
+        var all   = _captureBuffer.ToArray();   // snapshot; order = arrival order
+        var slice = all.Skip(offset).Take(limit).ToArray();
+
         var arr = new JsonArray();
-        foreach (var p in packets)
-            arr.Add(p.DeepClone());
-        return new JsonObject { ["packets"] = arr, ["total"] = _captureBuffer.Count };
+        foreach (var p in slice) arr.Add(p.DeepClone());
+        return new JsonObject { ["rows"] = arr, ["total"] = all.Length };
     }
 
     // =========================================================================

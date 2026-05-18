@@ -3882,7 +3882,8 @@ document.getElementById('regReadBtn')?.addEventListener('click', async () => {
   out.textContent = '읽는 중...'; out.style.color = 'var(--muted)';
   try {
     const d = await api('/api/register/read', { method: 'POST', body: JSON.stringify({ offset }) });
-    out.textContent = `offset : ${d.offset}\nvalue  : ${d.value}\n         (dec: ${d.valueDec})`;
+    const dec = d.valueDec ?? d.valueNum ?? '';
+    out.textContent = `offset : ${d.offset}\nvalue  : ${d.value}\n         (dec: ${dec})`;
     out.style.color = 'var(--accent)';
   } catch (e) { out.textContent = `오류: ${e.message}`; out.style.color = '#b91c1c'; }
 });

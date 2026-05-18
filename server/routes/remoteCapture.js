@@ -109,20 +109,20 @@ router.post('/clear', async (req, res) => {
 // ── GET /api/remote-capture/packets?peerUrl=...&limit=500&offset=0 ───────────
 router.get('/packets', async (req, res) => {
   try {
-    const base = validatePeerUrl(req.query.peerUrl);
+    const base   = validatePeerUrl(req.query.peerUrl);
     const limit  = Number(req.query.limit  ?? 500);
     const offset = Number(req.query.offset ?? 0);
 
+    // Pass offset/limit directly to peer; peer slices on its side
     const resp = await nodeFetch(
-      `${base}/api/capture/packets?limit=${limit + offset}`,
-      { signal: AbortSignal.timeout(6000) }
+      `${base}/api/capture/packets?limit=${limit}&offset=${offset}`,
+      { signal: AbortSignal.timeout(8000) }
     );
     if (!resp.ok) throw new Error(`Peer returned HTTP ${resp.status}`);
     const data = await resp.json();
 
-    // Apply offset (return only new rows since lastCount)
-    const rows = (data.rows ?? []).slice(offset);
-    res.json({ ok: true, rows, total: data.rows?.length ?? 0 });
+    const rows = data.rows ?? data.packets ?? [];
+    res.json({ ok: true, rows, total: data.total ?? rows.length });
   } catch (err) { proxyErr(res, err); }
 });
 

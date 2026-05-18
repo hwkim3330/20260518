@@ -3710,6 +3710,7 @@ body:not(.controlMode) .linkStrip { display: none; }
 
 /* Packet list table */
 .caPacketList {
+  flex: 1;
   overflow: auto;
   min-height: 0;
   background: #ffffff;

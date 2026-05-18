@@ -334,24 +334,24 @@ public sealed class NdjsonBridgeViewModel : ViewModelBase, IDisposable
     }
 
     // ── Poll for new packets — direct peer call ───────────────────────────────
-    // The peer's /api/capture/packets?limit=N returns ALL captured rows so far.
-    // We slice from _lastOffset to get only newly arrived ones.
+    // Uses offset parameter so the peer returns only new rows since last poll.
     private async Task PollAsync()
     {
         try
         {
-            var limit = 500 + _lastOffset;   // ask for all rows, apply offset client-side
-            var url   = $"{PeerBase}/api/capture/packets?limit={limit}";
-            var resp  = await _http.GetAsync(url);
+            var url  = $"{PeerBase}/api/capture/packets?limit=500&offset={_lastOffset}";
+            var resp = await _http.GetAsync(url);
             if (!resp.IsSuccessStatusCode) return;
-            var json  = await resp.Content.ReadAsStringAsync();
-            var doc   = JsonDocument.Parse(json);
-            var root  = doc.RootElement;
+            var json = await resp.Content.ReadAsStringAsync();
+            var doc  = JsonDocument.Parse(json);
+            var root = doc.RootElement;
 
-            if (!root.TryGetProperty("rows", out var rowsProp)) return;
+            // Accept both "rows" and "packets" key names
+            JsonElement rowsProp;
+            if (!root.TryGetProperty("rows", out rowsProp) &&
+                !root.TryGetProperty("packets", out rowsProp)) return;
 
-            var allRows  = rowsProp.EnumerateArray().ToList();
-            var newRows  = allRows.Skip(_lastOffset).ToList();
+            var newRows = rowsProp.EnumerateArray().ToList();
             if (newRows.Count == 0) return;
 
             _lastOffset += newRows.Count;
