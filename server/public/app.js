@@ -1916,12 +1916,105 @@ async function probeNode(url, role) {
   renderControlInterfacePicker(role, result.interfaces, $(controlSelectId(role))?.value || '');
 }
 
+async function fetchBackendStatus(url = '') {
+  const target = url ? `${url.replace(/\/+$/, '')}/api/backend/status` : '/api/backend/status';
+  const res = await fetch(target, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(3000) });
+  if (url && res.status === 404) return fetchLegacyBackendStatus(url);
+  const data = await res.json();
+  if (!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
+  return data;
+}
+
+async function fetchLegacyBackendStatus(url) {
+  const base = url.replace(/\/+$/, '');
+  const [health, workers, ifaces] = await Promise.all([
+    fetch(`${base}/api/health`, { signal: AbortSignal.timeout(3000) }).then((r) => r.json()).catch(() => ({})),
+    fetch(`${base}/api/workers`, { signal: AbortSignal.timeout(3000) }).then((r) => r.json()).catch(() => ({ workers: [] })),
+    fetch(`${base}/api/interfaces`, { signal: AbortSignal.timeout(5000) }).then((r) => r.json()).catch(() => ({ interfaces: [] }))
+  ]);
+  const connected = Boolean(health.csharpWorker?.connected || health.localWorker?.connected || (workers.workers || []).length);
+  return {
+    ok: true,
+    mode: connected ? 'csharp-worker' : 'legacy-node',
+    worker: { connected, id: health.localWorker?.id || 'local', info: health.localWorker?.info || {} },
+    nodeNative: {
+      packetSend: connected,
+      packetCapture: connected,
+      cap: null,
+      tcpdump: null,
+      serial: connected,
+      serialOpen: connected,
+      interfaces: ifaces.interfaces || []
+    },
+    features: {
+      send: connected,
+      capture: connected,
+      serial: connected,
+      register: connected,
+      fdb: connected,
+      mdio: connected,
+      reports: true
+    }
+  };
+}
+
+function renderBackendStatus(hostId, data, err = null) {
+  const host = $(hostId);
+  if (!host) return;
+  if (err) {
+    host.innerHTML = `<div class="backendModeLine"><strong class="failText">offline</strong></div>
+      <div class="backendIfaceLine">${escapeHtml(err.message || err)}</div>`;
+    return;
+  }
+  const f = data.features || {};
+  const nn = data.nodeNative || {};
+  const featureRows = [
+    ['send', f.send],
+    ['capture', f.capture],
+    ['serial', f.serial],
+    ['register', f.register],
+    ['mdio', f.mdio],
+    ['report', f.reports]
+  ].map(([name, ok]) => `<span class="backendFeature ${ok ? 'ok' : 'fail'}">${name}</span>`).join('');
+  const labIfaces = (nn.interfaces || []).filter(isControlLabInterface);
+  const ifaceLine = labIfaces.length
+    ? labIfaces.map((i) => `<code>${escapeHtml(i.name)}</code>${i.ipv4?.[0]?.local ? ` ${escapeHtml(i.ipv4[0].local)}` : ''}`).join(' · ')
+    : `${(nn.interfaces || []).length} interface(s), no 169.254 lab NIC auto-detected`;
+  const capText = nn.cap === null ? 'unknown' : nn.cap ? 'yes' : 'no';
+  const tcpdumpText = nn.tcpdump === null ? 'unknown' : nn.tcpdump ? 'yes' : 'no';
+  host.innerHTML = `
+    <div class="backendModeLine">
+      <strong>${escapeHtml(data.mode || 'unknown')}</strong>
+      <span class="${data.worker?.connected ? 'passText' : 'muted'}">${data.worker?.connected ? 'C# worker' : 'Node native'}</span>
+    </div>
+    <div class="backendFeatureRow">${featureRows}</div>
+    <div class="backendIfaceLine">cap: ${capText} · tcpdump: ${tcpdumpText} · serial: ${nn.serialOpen ? 'open' : nn.serial ? 'ready' : 'no'}</div>
+    <div class="backendIfaceLine">${ifaceLine}</div>
+  `;
+}
+
+async function refreshBackendStatus() {
+  const peerUrl = $('peerUrlPin')?.value.trim() || state.peer.url || DEFAULT_PEER_URL;
+  if ($('backendPeerUrl')) $('backendPeerUrl').textContent = peerUrl || '-';
+  await Promise.all([
+    fetchBackendStatus()
+      .then((data) => renderBackendStatus('backendLocalStatus', data))
+      .catch((err) => renderBackendStatus('backendLocalStatus', null, err)),
+    peerUrl
+      ? fetchBackendStatus(peerUrl)
+        .then((data) => renderBackendStatus('backendPeerStatus', data))
+        .catch((err) => renderBackendStatus('backendPeerStatus', null, err))
+      : Promise.resolve(renderBackendStatus('backendPeerStatus', null, new Error('Peer URL not set')))
+  ]);
+}
+
 async function probeNodes() {
   setStatus('Probing remote nodes...');
   await Promise.all([
     probeNode($('senderNodeUrl').value, 'sender'),
     probeNode($('receiverNodeUrl').value, 'receiver')
   ]);
+  refreshBackendStatus().catch(() => {});
   renderNodeGrid();
   setStatus('Nodes ready');
 }
@@ -3579,6 +3672,7 @@ async function probePeer() {
   if (state.localRole === 'sender') state.nodes.receiver = { url, interfaces: result.interfaces };
   else state.nodes.sender = { url, interfaces: result.interfaces };
   renderLinkStrip();
+  refreshBackendStatus().catch(() => {});
   setStatus(`Peer probed: ${result.interfaces.length} interfaces`);
 }
 
@@ -4294,11 +4388,14 @@ async function portMonitorPoll() {
 document.getElementById('portMonitorRefresh')?.addEventListener('click', portMonitorPoll);
 
 document.querySelector('[data-htview="controlView"]')?.addEventListener('click', () => {
+  refreshBackendStatus().catch(() => {});
   portMonitorPoll();
   if (!_portMonitorTimer) {
     _portMonitorTimer = setInterval(portMonitorPoll, 3000);
   }
 });
+
+$('backendRefresh')?.addEventListener('click', () => refreshBackendStatus().catch(toastError));
 
 // Stop polling when leaving Control sub-tab or HyperTerminal top-level tab
 document.querySelectorAll('[data-htview]').forEach((btn) => {

@@ -1341,6 +1341,83 @@ body.serialMode .linkStrip { display: none; }
   background: #22c55e;
 }
 
+.backendStatusGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 10px 0 12px;
+}
+
+.backendStatusCard {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: linear-gradient(180deg, #fff 0%, #f8fbfc 100%);
+  overflow: hidden;
+}
+
+.backendStatusHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line);
+  background: #f8fbfc;
+}
+
+.backendStatusBody {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  font-size: 12px;
+}
+
+.backendModeLine {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.backendModeLine strong {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.backendFeatureRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.backendFeature {
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 800;
+  color: #64748b;
+  background: #eef2f7;
+}
+
+.backendFeature.ok {
+  color: #14532d;
+  background: #dcfce7;
+}
+
+.backendFeature.fail {
+  color: #991b1b;
+  background: #fee2e2;
+}
+
+.backendIfaceLine {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.backendIfaceLine code {
+  color: var(--text);
+}
+
 .controlTopology {
   margin: 12px 0 16px;
   border: 1px solid var(--line);

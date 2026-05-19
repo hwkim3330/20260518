@@ -609,6 +609,23 @@
             </div>
             <div id="pairWarning" class="pairWarning hidden">Set the Peer URL in the top link strip and Probe before running tests.</div>
 
+            <div class="backendStatusGrid" id="backendStatusGrid">
+              <div class="backendStatusCard">
+                <div class="backendStatusHead">
+                  <strong>This PC Backend</strong>
+                  <button id="backendRefresh" class="ghostBtn small">↻</button>
+                </div>
+                <div id="backendLocalStatus" class="backendStatusBody">checking...</div>
+              </div>
+              <div class="backendStatusCard">
+                <div class="backendStatusHead">
+                  <strong>Peer PC Backend</strong>
+                  <span id="backendPeerUrl" class="muted">-</span>
+                </div>
+                <div id="backendPeerStatus" class="backendStatusBody">probe peer first</div>
+              </div>
+            </div>
+
             <div class="controlPairPicker">
               <div class="controlPairHead">
                 <div>
