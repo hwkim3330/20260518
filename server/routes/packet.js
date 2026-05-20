@@ -36,10 +36,11 @@ router.post('/build', async (req, res) => {
         const data = await req.app.locals.localCmd('build', req.body || {});
         return res.json({ ok: true, ...(data || {}), stdout: data || {} });
       } catch (e) {
-        if (!e.workerError || !/unsupported protocol/i.test(e.message)) throw e;
+        // Fall through to local builder on any worker error (unsupported protocol, null ref, etc.)
+        if (!e.workerError) throw e;
       }
     }
-    // Linux or unsupported protocol: build frame locally and return hex + decoded
+    // Worker unavailable or returned error: build frame locally and return hex + decoded
     const { buildFrame, normalizeProfile } = require('../services/frameBuilder');
     const { decodeFrame } = require('../services/packetBackend');
     const frame   = buildFrame(normalizeProfile(req.body || {}));
