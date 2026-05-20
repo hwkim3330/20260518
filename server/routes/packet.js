@@ -15,8 +15,12 @@ function hasWorker(req) {
 router.get('/interfaces', async (req, res) => {
   try {
     if (hasWorker(req)) {
-      const data = await req.app.locals.localCmd('getInterfaces');
-      const interfaces = data?.interfaces ?? [];
+      const data = await req.app.locals.localCmd('getinterfaces');
+      const interfaces = (data?.interfaces ?? []).map(i => ({
+        name: i.name, mac: i.mac, state: i.state, mtu: i.mtu ?? 1500,
+        ipv4: (i.ipv4 ?? []).map(a => typeof a === 'string' ? { local: a, prefixlen: 24 } : a),
+        description: i.description ?? i.name,
+      }));
       return res.json({ ok: true, interfaces, stdout: { interfaces } });
     }
     const interfaces = req.app.locals.packetBackend.listInterfaces();

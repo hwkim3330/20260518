@@ -542,7 +542,7 @@ function renderTcTree(groups) {
       </div>
       ${(g.cases || g.testCases || []).map((t, ti) => `
         <div class="tc-item" data-group="${gi}" data-tc="${ti}">
-          <span>${esc(t.name)}</span><small>${(t.steps||[]).length} steps</small>
+          <span>${esc(t.name)}</span><small>${t.itemCount ?? (t.steps||[]).length} steps</small>
         </div>`).join('')}
     </div>`).join('');
   root.querySelectorAll('.tc-item').forEach(el => el.addEventListener('click', async () => {
@@ -550,15 +550,26 @@ function renderTcTree(groups) {
     state.selectedTcIdx = Number(el.dataset.tc);
     el.closest('.tc-group').querySelectorAll('.tc-item').forEach(e => e.classList.remove('selected'));
     el.classList.add('selected');
-    // Load TC steps into sequence
     try {
-      const data = await api('/api/testcases/status');
-      const snapshot = data.snapshot || [];
-      const grp = snapshot[state.selectedGroupIdx];
+      // Tell server to select this TC (C# worker syncs its sequence)
+      await api('/api/testcases/select', { method: 'POST', body: JSON.stringify({
+        groupIndex: state.selectedGroupIdx, tcIndex: state.selectedTcIdx
+      }) });
+      // Reload sequence (native: tc.steps; C#: server returns updated sequence)
+      const [tcData, seqData] = await Promise.all([
+        api('/api/testcases/status'),
+        api('/api/sequence/full'),
+      ]);
+      const raw = tcData.snapshot || [];
+      const grps = Array.isArray(raw) ? raw : (raw.groups || []);
+      const grp = grps[state.selectedGroupIdx];
       const tc  = (grp?.cases || grp?.testCases || [])[state.selectedTcIdx];
-      if (tc) renderSequenceRows(tc.steps || []);
-      if ($('scenarioTitle')) $('scenarioTitle').textContent = `Test Sequence — ${esc(tc?.name || '')}`;
-    } catch {}
+      const tcName = tc?.name || '';
+      // Prefer server sequence (C#) over tc.steps (native)
+      const items = seqData.items?.length ? seqData.items : (tc?.steps || []);
+      renderSequenceRows(items);
+      if ($('scenarioTitle')) $('scenarioTitle').textContent = `Test Sequence — ${esc(tcName)} (${items.length} steps)`;
+    } catch(err) { toast(`Load TC failed: ${err.message}`, 'bad'); }
   }));
   root.querySelectorAll('.tc-del-group').forEach(btn => btn.addEventListener('click', async () => {
     if (!confirm('Delete this group?')) return;
@@ -569,15 +580,28 @@ function renderTcTree(groups) {
 
 function seqEventSummary(item) {
   const t = (item.eventType || item.type || '').toLowerCase();
-  if (t === 'delay')          return `${item.delayMs ?? 100}ms`;
-  if (t === 'registerwrite')  return `${item.offset || item.address}  ←  ${item.value}`;
-  if (t === 'registerread')   return `${item.offset || item.address}`;
-  if (t === 'registerexpect') return `${item.offset || item.address} & ${item.mask||'0xFFFFFFFF'} == ${item.expected} [${item.timeoutMs||1000}ms]`;
-  if (t === 'fdbwrite')       return `MAC:${item.mac}  Port:${item.port}`;
-  if (t === 'fdbread')        return `MAC:${item.mac}`;
-  if (t === 'fdbflush')       return `flush all`;
-  if (t === 'rxverify')       return `if:${item.captureInterface||'?'}  filter:${item.captureFilter||''}  expect:${item.captureExpected||1}`;
-  return JSON.stringify(item).slice(0,60);
+  const addr = item.address || item.offset || '?';
+  if (t === 'delay')
+    return `${item.delayMs ?? 100}ms`;
+  if (t === 'regwrite' || t === 'registerwrite')
+    return `${addr}  ←  ${item.value}`;
+  if (t === 'regread' || t === 'registerread')
+    return `${addr}`;
+  if (t === 'regwaitfor' || t === 'registerexpect' || t === 'registerwait' || t === 'regverify')
+    return `${addr} & ${item.mask||'0xFFFFFFFF'} == ${item.expected} [${item.timeoutMs||5000}ms]`;
+  if (t === 'fdbwrite')
+    return `MAC:${item.macAddress||item.mac||'?'}  Port:${item.port??0}`;
+  if (t === 'fdbread')
+    return `MAC:${item.macAddress||item.mac||'?'}`;
+  if (t === 'fdbflush')
+    return `flush all`;
+  if (t === 'serialsend')
+    return `→ "${item.serialText||item.serialHex||''}"`;
+  if (t === 'serialverify')
+    return `expect "${item.serialText||''}" [${item.timeoutMs||5000}ms]`;
+  if (t === 'captureverify' || t === 'rxverify' || t === 'checkcapture')
+    return `if:${item.captureInterface||'any'}  ×${item.captureExpected||1}  [${item.timeoutMs||3000}ms]`;
+  return JSON.stringify(item).slice(0, 60);
 }
 
 function renderSequenceRows(items) {
@@ -627,29 +651,35 @@ async function saveTcCurrent() {
 
 // ── Event Palette Modal ───────────────────────────────────────────────────────
 const EVENT_FIELDS = {
-  Delay:      [{ id:'delayMs',  label:'Delay (ms)',       type:'number', def:'500'           }],
-  RegWrite:   [{ id:'offset',   label:'Offset (hex)',     type:'text',   def:'0x000'         },
-               { id:'value',    label:'Value (hex)',      type:'text',   def:'0x00000001'    }],
-  RegRead:    [{ id:'offset',   label:'Offset (hex)',     type:'text',   def:'0x000'         }],
-  RegVerify:  [{ id:'offset',   label:'Offset (hex)',     type:'text',   def:'0x000'         },
-               { id:'expected', label:'Expected (hex)',   type:'text',   def:'0x00000001'    },
-               { id:'mask',     label:'Mask (hex)',       type:'text',   def:'0xFFFFFFFF'    },
-               { id:'timeoutMs',label:'Timeout (ms)',     type:'number', def:'1000'          }],
-  FdbWrite:   [{ id:'mac',      label:'MAC',              type:'text',   def:'00:00:00:00:00:00' },
-               { id:'vlanId',   label:'VLAN ID',          type:'number', def:'0'             },
-               { id:'port',     label:'Port',             type:'number', def:'0'             }],
-  FdbRead:    [{ id:'mac',      label:'MAC',              type:'text',   def:'00:00:00:00:00:00' },
-               { id:'vlanId',   label:'VLAN ID',          type:'number', def:'0'             }],
-  FdbFlush:   [],
-  RxVerify:   [{ id:'captureInterface', label:'Interface',     type:'text',   def:''        },
-               { id:'captureFilter',    label:'Filter (text)', type:'text',   def:''        },
-               { id:'captureExpected',  label:'Min frames',    type:'number', def:'1'       }],
+  Delay:       [{ id:'delayMs',           label:'Delay (ms)',       type:'number', def:'500'               }],
+  RegWrite:    [{ id:'address',           label:'Address (hex)',    type:'text',   def:'0x44A00000'        },
+                { id:'value',             label:'Value (hex)',      type:'text',   def:'0x00000001'        }],
+  RegRead:     [{ id:'address',           label:'Address (hex)',    type:'text',   def:'0x44A00000'        }],
+  RegWaitFor:  [{ id:'address',           label:'Address (hex)',    type:'text',   def:'0x44A00000'        },
+                { id:'expected',          label:'Expected (hex)',   type:'text',   def:'0x00000001'        },
+                { id:'mask',              label:'Mask (hex)',       type:'text',   def:'0xFFFFFFFF'        },
+                { id:'timeoutMs',         label:'Timeout (ms)',     type:'number', def:'5000'              }],
+  FdbWrite:    [{ id:'macAddress',        label:'MAC',              type:'text',   def:'00:00:00:00:00:00' },
+                { id:'vlanId',            label:'VLAN ID',          type:'number', def:'0'                 },
+                { id:'port',              label:'Port',             type:'number', def:'0'                 }],
+  FdbRead:     [{ id:'macAddress',        label:'MAC',              type:'text',   def:'00:00:00:00:00:00' },
+                { id:'vlanId',            label:'VLAN ID',          type:'number', def:'0'                 }],
+  FdbFlush:    [],
+  SerialSend:  [{ id:'serialText',        label:'Text to send',     type:'text',   def:''                  },
+                { id:'serialHex',         label:'Hex bytes (opt)',  type:'text',   def:''                  }],
+  SerialVerify:[{ id:'serialText',        label:'Expected text',    type:'text',   def:''                  },
+                { id:'timeoutMs',         label:'Timeout (ms)',     type:'number', def:'5000'              }],
+  CaptureVerify:[{ id:'captureInterface', label:'Interface',        type:'text',   def:''                  },
+                 { id:'captureFilter',    label:'Filter (text)',    type:'text',   def:''                  },
+                 { id:'captureExpected',  label:'Min frames',       type:'number', def:'1'                 },
+                 { id:'timeoutMs',        label:'Timeout (ms)',     type:'number', def:'3000'              }],
 };
 
 const EVENT_TYPES = {
-  Delay:     'delay',     RegWrite: 'registerWrite', RegRead: 'registerRead',
-  RegVerify: 'registerExpect', FdbWrite: 'fdbWrite', FdbRead:  'fdbRead',
-  FdbFlush:  'fdbFlush',  RxVerify: 'rxVerify',
+  Delay: 'Delay', RegWrite: 'RegWrite', RegRead: 'RegRead',
+  RegWaitFor: 'RegWaitFor', FdbWrite: 'FdbWrite', FdbRead: 'FdbRead',
+  FdbFlush: 'FdbFlush', SerialSend: 'SerialSend', SerialVerify: 'SerialVerify',
+  CaptureVerify: 'CaptureVerify',
 };
 
 let _evKind = null;
@@ -2012,10 +2042,12 @@ async function seqImportJson(file) {
 async function tcExportJson() {
   try {
     const data = await api('/api/testcases/status');
-    const snapshot = data.snapshot || [];
-    if (!snapshot.length) { toast('No test cases to export', 'warn'); return; }
-    dlJson(snapshot, `testcases_${dateStr()}.json`);
-    toast(`Exported ${snapshot.length} group(s)`, 'ok');
+    const raw = data.snapshot || [];
+    // C# worker returns snapshot as {groups:[...], ...}; native returns array
+    const groups = Array.isArray(raw) ? raw : (raw.groups || []);
+    if (!groups.length) { toast('No test cases to export', 'warn'); return; }
+    dlJson(groups, `testcases_${dateStr()}.json`);
+    toast(`Exported ${groups.length} group(s)`, 'ok');
   } catch (err) { toast(`Export failed: ${err.message}`, 'bad'); }
 }
 

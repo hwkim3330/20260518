@@ -79,6 +79,7 @@ async function runStep(step) {
       await delay(step.delayMs ?? 100);
       return { pass: true, detail: `${step.delayMs ?? 100}ms` };
 
+    case 'regwrite':
     case 'registerwrite': {
       await switchProtocol.registerWrite({
         offset: step.address ?? step.offset,
@@ -87,11 +88,13 @@ async function runStep(step) {
       return { pass: true, detail: `write ${step.value} → ${step.address ?? step.offset}` };
     }
 
+    case 'regread':
     case 'registerread': {
       const r = await switchProtocol.registerRead({ offset: step.address ?? step.offset });
       return { pass: true, detail: `read → ${r.value}` };
     }
 
+    case 'regwaitfor':
     case 'registerwait':
     case 'registerexpect': {
       const mask     = parseHex(step.mask     ?? '0xFFFFFFFF');
@@ -130,15 +133,71 @@ async function runStep(step) {
       packetBackend.stopCapture();
       return { pass: true, detail: 'capture stopped' };
 
+    case 'captureverify':
+    case 'rxverify':
     case 'checkcapture': {
-      const { rows } = packetBackend.getCaptures(10000, 0);
-      const filter  = step.captureFilter ?? '';
-      const matched = filter
-        ? rows.filter(r => r.frameHex.includes(filter) || JSON.stringify(r.decoded).includes(filter))
-        : rows;
+      const timeout  = step.timeoutMs ?? 3000;
+      const deadline = Date.now() + timeout;
+      const filter   = step.captureFilter ?? '';
       const expected = step.captureExpected ?? 1;
+      let matched = [];
+      while (Date.now() < deadline) {
+        const { rows } = packetBackend.getCaptures(10000, 0);
+        matched = filter
+          ? rows.filter(r => r.frameHex?.includes(filter) || JSON.stringify(r.decoded).includes(filter))
+          : rows;
+        if (matched.length >= expected) break;
+        await delay(100);
+      }
       const pass = matched.length >= expected;
       return { pass, detail: `${matched.length}/${expected} frames matched` };
+    }
+
+    case 'fdbwrite': {
+      await switchProtocol.fdbWrite({
+        mac: step.macAddress ?? step.mac, port: step.port ?? 0,
+        vlanId: step.vlanId ?? 0, vlanValid: step.vlanValid ?? false,
+      });
+      return { pass: true, detail: `FDB write ${step.macAddress ?? step.mac} → port ${step.port ?? 0}` };
+    }
+
+    case 'fdbread': {
+      const r = await switchProtocol.fdbRead({ mac: step.macAddress ?? step.mac, vlanId: step.vlanId ?? 0 });
+      return { pass: true, detail: JSON.stringify(r).slice(0, 80) };
+    }
+
+    case 'fdbflush': {
+      await switchProtocol.fdbFlush({});
+      return { pass: true, detail: 'FDB flushed' };
+    }
+
+    case 'serialsend': {
+      const { serialBridge } = _services;
+      if (!serialBridge) return { pass: false, detail: 'no serial service' };
+      const sessions = serialBridge.getSessions ? serialBridge.getSessions() : [];
+      const sess = sessions[0];
+      if (!sess) return { pass: false, detail: 'no serial session open' };
+      if (step.serialHex) {
+        const buf = Buffer.from(step.serialHex.replace(/\s/g, ''), 'hex');
+        await sess.write(buf);
+      } else {
+        await sess.write(Buffer.from(step.serialText ?? '', 'utf8'));
+      }
+      return { pass: true, detail: `sent "${step.serialText || step.serialHex || ''}"` };
+    }
+
+    case 'serialverify': {
+      const { serialBridge } = _services;
+      if (!serialBridge) return { pass: false, detail: 'no serial service' };
+      const timeout  = step.timeoutMs ?? 5000;
+      const deadline = Date.now() + timeout;
+      const expect   = step.serialText ?? '';
+      let buf = '';
+      while (Date.now() < deadline) {
+        if (buf.includes(expect)) return { pass: true, detail: `matched "${expect}"` };
+        await delay(50);
+      }
+      return { pass: false, detail: `timeout waiting for "${expect}"` };
     }
 
     default:
