@@ -27,23 +27,24 @@
     .heatmap{padding:16px;margin:16px 0}.heatRow{display:grid;grid-template-columns:minmax(260px,.95fr) 1.5fr;gap:10px;align-items:center;padding:7px 0;border-top:1px solid #edf2f7}.heatRow:first-of-type{border-top:0}
     .heatRow strong{font-size:12px}.heatCell{display:inline-block;margin:3px;border-radius:8px;padding:5px 8px;font-family:ui-monospace,SFMono-Regular,monospace;font-size:12px;font-weight:800}
     .heatCell.ok{background:#dcfce7;color:#14532d}.heatCell.partial{background:#fef3c7;color:#92400e}.heatCell.fail{background:#fee2e2;color:#991b1b}
+    .qualityGrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0}
     table{width:100%;border-collapse:separate;border-spacing:0;margin-top:16px;overflow:hidden}th,td{padding:10px 12px;border-bottom:1px solid #e5edf3;text-align:left;vertical-align:top}th{background:#edf6f7;font-size:12px;text-transform:uppercase;color:#456}td:nth-child(n+3){font-family:ui-monospace,SFMono-Regular,monospace}
     .pill{display:inline-block;color:white;border-radius:999px;padding:4px 9px;font-size:11px;font-weight:900;white-space:nowrap}.muted{color:#64748b}
-    @media(max-width:900px){.cards,.charts,.topoLinkCard,.heatRow{grid-template-columns:1fr}.switchPath{min-height:120px}}
+    @media(max-width:900px){.cards,.charts,.qualityGrid,.topoLinkCard,.heatRow{grid-template-columns:1fr}.switchPath{min-height:120px}}
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="hero">
       <h1>Switch Deep Test Report</h1>
-      <div>2026-05-20T04:44:21.068Z</div>
+      <div>2026-05-20T04:59:35.383Z</div>
       <p>Known-unicast validation. Local http://localhost:8080 · Peer http://172.31.51.213:8080 · 3 trials · 5 frames/trial · up to 3 measurement attempts/trial. Destination MAC and capture BPF are pinned per port pair.</p>
     </div>
     <div class="cards">
       <div class="card"><span>Total Frames</span><strong>60</strong></div>
       <div class="card"><span>Matched</span><strong>60</strong></div>
       <div class="card"><span>Clean Directions</span><strong>4/4</strong></div>
-      <div class="card"><span>Avg Trial Runtime</span><strong>3140 ms</strong></div>
+      <div class="card"><span>Avg Trial Runtime</span><strong>3252 ms</strong></div>
       <div class="card"><span>Setup Retries</span><strong>0</strong></div>
     </div>
     <div class="topology">
@@ -89,6 +90,12 @@
       <div class="chart"><h3>Trial Runtime Trend</h3><canvas id="elapsed"></canvas></div>
       <div class="chart"><h3>Setup / API Health</h3><canvas id="api"></canvas></div>
     </div>
+    <div class="qualityGrid">
+      <div class="chart"><h3>Frame Size Sweep — Marker RX</h3><canvas id="sizeSweep"></canvas></div>
+      <div class="chart"><h3>Burst Interval — Runtime</h3><canvas id="burstRuntime"></canvas></div>
+      <div class="chart"><h3>Burst Interval — Marker RX</h3><canvas id="burstMatch"></canvas></div>
+      <div class="chart"><h3>Quality Scope</h3><p class="muted">Frame sizes: 64, 128, 256, 512, 1024, 1500 bytes. Burst intervals: 150, 50, 10, 0 ms. Quality sweep runs on Peer 이더넷 2 -&gt; Local enp1s0f1 / Peer 이더넷 -&gt; Local enp1s0f3 by default to keep runtime bounded.</p></div>
+    </div>
     <div class="heatmap"><h3>Trial Stability Heatmap</h3><div class="heatRow"><strong>Local enp1s0f1 -&gt; Peer 이더넷 2</strong><div><span class="heatCell ok" title="trial 1: 5/5">5/5</span><span class="heatCell ok" title="trial 2: 5/5">5/5</span><span class="heatCell ok" title="trial 3: 5/5">5/5</span></div></div><div class="heatRow"><strong>Local enp1s0f3 -&gt; Peer 이더넷</strong><div><span class="heatCell ok" title="trial 1: 5/5">5/5</span><span class="heatCell ok" title="trial 2: 5/5">5/5</span><span class="heatCell ok" title="trial 3: 5/5">5/5</span></div></div><div class="heatRow"><strong>Peer 이더넷 2 -&gt; Local enp1s0f1</strong><div><span class="heatCell ok" title="trial 1: 5/5">5/5</span><span class="heatCell ok" title="trial 2: 5/5">5/5</span><span class="heatCell ok" title="trial 3: 5/5">5/5</span></div></div><div class="heatRow"><strong>Peer 이더넷 -&gt; Local enp1s0f3</strong><div><span class="heatCell ok" title="trial 1: 5/5">5/5</span><span class="heatCell ok" title="trial 2: 5/5">5/5</span><span class="heatCell ok" title="trial 3: 5/5">5/5</span></div></div></div>
     <table><thead><tr><th>Direction</th><th>Verdict</th><th>Matched</th><th>RX</th><th>API Errors</th><th>Trials</th></tr></thead><tbody><tr><td>Local enp1s0f1 -&gt; Peer 이더넷 2</td><td><span class="pill" style="background:#12803a">PASS</span></td><td>15/15</td><td>100%</td><td>0</td><td>5/5 · 5/5 · 5/5</td></tr><tr><td>Local enp1s0f3 -&gt; Peer 이더넷</td><td><span class="pill" style="background:#12803a">PASS</span></td><td>15/15</td><td>100%</td><td>0</td><td>5/5 · 5/5 · 5/5</td></tr><tr><td>Peer 이더넷 2 -&gt; Local enp1s0f1</td><td><span class="pill" style="background:#12803a">PASS</span></td><td>15/15</td><td>100%</td><td>0</td><td>5/5 · 5/5 · 5/5</td></tr><tr><td>Peer 이더넷 -&gt; Local enp1s0f3</td><td><span class="pill" style="background:#12803a">PASS</span></td><td>15/15</td><td>100%</td><td>0</td><td>5/5 · 5/5 · 5/5</td></tr></tbody></table>
     <p class="muted">Generated artifact: <code>/reports/switch-deep-latest.html</code> and <code>/reports/switch-deep-latest.json</code>.</p>
@@ -98,14 +105,19 @@
     new Chart(document.getElementById('accounting'),{type:'bar',data:{labels,datasets:[
       {label:'Sent frames',data:[15,15,15,15],backgroundColor:'#94a3b8'},
       {label:'Marker matched',data:[15,15,15,15],backgroundColor:'#16a34a'},
-      {label:'Captured rows',data:[15,15,18,15],backgroundColor:'#0f6f78'}
+      {label:'Captured rows',data:[15,15,15,15],backgroundColor:'#0f6f78'}
     ]},options:{responsive:true,plugins:{legend:{position:'bottom'}},scales:{y:{beginAtZero:true,ticks:{precision:0}}}}});
     new Chart(document.getElementById('rx'),{type:'bar',data:{labels,datasets:[{label:'RX %',data:[100,100,100,100],backgroundColor:'#0f6f78'}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{min:0,max:100}}}});
-    new Chart(document.getElementById('elapsed'),{type:'line',data:{labels:["Trial 1","Trial 2","Trial 3"],datasets:[{"label":"Local enp1s0f1 -> Peer 이더넷 2","data":[3246,3468,3234],"borderColor":"#0f6f78","backgroundColor":"#0f6f78","tension":0.25},{"label":"Local enp1s0f3 -> Peer 이더넷","data":[3185,3443,3284],"borderColor":"#f59e0b","backgroundColor":"#f59e0b","tension":0.25},{"label":"Peer 이더넷 2 -> Local enp1s0f1","data":[3135,2843,3107],"borderColor":"#2563eb","backgroundColor":"#2563eb","tension":0.25},{"label":"Peer 이더넷 -> Local enp1s0f3","data":[2903,2760,3076],"borderColor":"#16a34a","backgroundColor":"#16a34a","tension":0.25}]},options:{responsive:true,plugins:{legend:{position:'bottom'}},scales:{y:{beginAtZero:false,title:{display:true,text:'ms'}}}}});
+    new Chart(document.getElementById('elapsed'),{type:'line',data:{labels:["Trial 1","Trial 2","Trial 3"],datasets:[{"label":"Local enp1s0f1 -> Peer 이더넷 2","data":[3209,3333,3807],"borderColor":"#0f6f78","backgroundColor":"#0f6f78","tension":0.25},{"label":"Local enp1s0f3 -> Peer 이더넷","data":[3349,3184,3240],"borderColor":"#f59e0b","backgroundColor":"#f59e0b","tension":0.25},{"label":"Peer 이더넷 2 -> Local enp1s0f1","data":[3375,3035,3299],"borderColor":"#2563eb","backgroundColor":"#2563eb","tension":0.25},{"label":"Peer 이더넷 -> Local enp1s0f3","data":[2996,3091,3106],"borderColor":"#16a34a","backgroundColor":"#16a34a","tension":0.25}]},options:{responsive:true,plugins:{legend:{position:'bottom'}},scales:{y:{beginAtZero:false,title:{display:true,text:'ms'}}}}});
     new Chart(document.getElementById('api'),{type:'bar',data:{labels,datasets:[
       {label:'API errors',data:[0,0,0,0],backgroundColor:'#dc2626'},
-      {label:'Avg runtime ms',data:[3316,3304,3028,2913],backgroundColor:'#f59e0b',yAxisID:'y1'}
+      {label:'Avg runtime ms',data:[3450,3258,3236,3064],backgroundColor:'#f59e0b',yAxisID:'y1'}
     ]},options:{responsive:true,plugins:{legend:{position:'bottom'}},scales:{y:{beginAtZero:true,ticks:{precision:0}},y1:{position:'right',beginAtZero:true,grid:{drawOnChartArea:false},title:{display:true,text:'ms'}}}}});
+    if (true) {
+      new Chart(document.getElementById('sizeSweep'),{type:'line',data:{labels:["64","128","256","512","1024","1500"],datasets:[{"label":"Peer 이더넷 2 -> Local enp1s0f1","data":[100,100,100,100,100,100],"borderColor":"#0f6f78","backgroundColor":"#0f6f78","tension":0.25},{"label":"Peer 이더넷 -> Local enp1s0f3","data":[100,100,100,100,100,100],"borderColor":"#f59e0b","backgroundColor":"#f59e0b","tension":0.25}]},options:{responsive:true,plugins:{legend:{position:'bottom'}},scales:{y:{min:0,max:100,title:{display:true,text:'RX %'}},x:{title:{display:true,text:'Frame bytes'}}}}});
+      new Chart(document.getElementById('burstRuntime'),{type:'line',data:{labels:["150 ms","50 ms","10 ms","0 ms"],datasets:[{"label":"Peer 이더넷 2 -> Local enp1s0f1","data":[3017,2920,2990,3367],"borderColor":"#0f6f78","backgroundColor":"#0f6f78","tension":0.25},{"label":"Peer 이더넷 -> Local enp1s0f3","data":[3387,3142,3007,3094],"borderColor":"#f59e0b","backgroundColor":"#f59e0b","tension":0.25}]},options:{responsive:true,plugins:{legend:{position:'bottom'}},scales:{y:{beginAtZero:true,title:{display:true,text:'ms'}},x:{title:{display:true,text:'Send interval'}}}}});
+      new Chart(document.getElementById('burstMatch'),{type:'bar',data:{labels:["150 ms","50 ms","10 ms","0 ms"],datasets:[{"label":"Peer 이더넷 2 -> Local enp1s0f1","data":[100,100,100,100],"backgroundColor":"#0f6f78"},{"label":"Peer 이더넷 -> Local enp1s0f3","data":[100,100,100,100],"backgroundColor":"#f59e0b"}]},options:{responsive:true,plugins:{legend:{position:'bottom'}},scales:{y:{min:0,max:100,title:{display:true,text:'RX %'}}}}});
+    }
   </script>
 </body>
 </html>

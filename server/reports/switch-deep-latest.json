@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-20T04:44:21.068Z",
+  "generatedAt": "2026-05-20T04:59:35.383Z",
   "local": "http://localhost:8080",
   "peer": "http://172.31.51.213:8080",
   "count": 5,
@@ -19,7 +19,9 @@
       "sendOk": true,
       "captureOk": true,
       "measurementAttempt": 1,
-      "elapsedMs": 3246,
+      "elapsedMs": 3209,
+      "targetFrameLength": null,
+      "intervalMs": 150,
       "byIface": {
         "이더넷 2": 5
       },
@@ -37,8 +39,10 @@
       "captureStartAttempts": 1,
       "sendOk": true,
       "captureOk": true,
-      "measurementAttempt": 1,
-      "elapsedMs": 3185,
+      "measurementAttempt": 2,
+      "elapsedMs": 3349,
+      "targetFrameLength": null,
+      "intervalMs": 150,
       "byIface": {
         "이더넷": 5
       },
@@ -50,14 +54,16 @@
       "sent": 5,
       "expected": 5,
       "matched": 5,
-      "captureRows": 8,
+      "captureRows": 5,
       "lossPct": 0,
       "startOk": true,
       "captureStartAttempts": 1,
       "sendOk": true,
       "captureOk": true,
       "measurementAttempt": 1,
-      "elapsedMs": 3135,
+      "elapsedMs": 3375,
+      "targetFrameLength": null,
+      "intervalMs": 150,
       "byIface": {
         "enp1s0f1": 5
       },
@@ -76,7 +82,9 @@
       "sendOk": true,
       "captureOk": true,
       "measurementAttempt": 1,
-      "elapsedMs": 2903,
+      "elapsedMs": 2996,
+      "targetFrameLength": null,
+      "intervalMs": 150,
       "byIface": {
         "enp1s0f3": 5
       },
@@ -95,7 +103,9 @@
       "sendOk": true,
       "captureOk": true,
       "measurementAttempt": 1,
-      "elapsedMs": 3468,
+      "elapsedMs": 3333,
+      "targetFrameLength": null,
+      "intervalMs": 150,
       "byIface": {
         "이더넷 2": 5
       },
@@ -114,7 +124,9 @@
       "sendOk": true,
       "captureOk": true,
       "measurementAttempt": 1,
-      "elapsedMs": 3443,
+      "elapsedMs": 3184,
+      "targetFrameLength": null,
+      "intervalMs": 150,
       "byIface": {
         "이더넷": 5
       },
@@ -133,7 +145,9 @@
       "sendOk": true,
       "captureOk": true,
       "measurementAttempt": 1,
-      "elapsedMs": 2843,
+      "elapsedMs": 3035,
+      "targetFrameLength": null,
+      "intervalMs": 150,
       "byIface": {
         "enp1s0f1": 5
       },
@@ -152,7 +166,9 @@
       "sendOk": true,
       "captureOk": true,
       "measurementAttempt": 1,
-      "elapsedMs": 2760,
+      "elapsedMs": 3091,
+      "targetFrameLength": null,
+      "intervalMs": 150,
       "byIface": {
         "enp1s0f3": 5
       },
@@ -171,7 +187,9 @@
       "sendOk": true,
       "captureOk": true,
       "measurementAttempt": 1,
-      "elapsedMs": 3234,
+      "elapsedMs": 3807,
+      "targetFrameLength": null,
+      "intervalMs": 150,
       "byIface": {
         "이더넷 2": 5
       },
@@ -190,7 +208,9 @@
       "sendOk": true,
       "captureOk": true,
       "measurementAttempt": 1,
-      "elapsedMs": 3284,
+      "elapsedMs": 3240,
+      "targetFrameLength": null,
+      "intervalMs": 150,
       "byIface": {
         "이더넷": 5
       },
@@ -209,7 +229,9 @@
       "sendOk": true,
       "captureOk": true,
       "measurementAttempt": 1,
-      "elapsedMs": 3107,
+      "elapsedMs": 3299,
+      "targetFrameLength": null,
+      "intervalMs": 150,
       "byIface": {
         "enp1s0f1": 5
       },
@@ -228,7 +250,9 @@
       "sendOk": true,
       "captureOk": true,
       "measurementAttempt": 1,
-      "elapsedMs": 3076,
+      "elapsedMs": 3106,
+      "targetFrameLength": null,
+      "intervalMs": 150,
       "byIface": {
         "enp1s0f3": 5
       },
@@ -261,7 +285,9 @@
           "sendOk": true,
           "captureOk": true,
           "measurementAttempt": 1,
-          "elapsedMs": 3246,
+          "elapsedMs": 3209,
+          "targetFrameLength": null,
+          "intervalMs": 150,
           "byIface": {
             "이더넷 2": 5
           },
@@ -280,7 +306,9 @@
           "sendOk": true,
           "captureOk": true,
           "measurementAttempt": 1,
-          "elapsedMs": 3468,
+          "elapsedMs": 3333,
+          "targetFrameLength": null,
+          "intervalMs": 150,
           "byIface": {
             "이더넷 2": 5
           },
@@ -299,7 +327,9 @@
           "sendOk": true,
           "captureOk": true,
           "measurementAttempt": 1,
-          "elapsedMs": 3234,
+          "elapsedMs": 3807,
+          "targetFrameLength": null,
+          "intervalMs": 150,
           "byIface": {
             "이더넷 2": 5
           },
@@ -331,8 +361,10 @@
           "captureStartAttempts": 1,
           "sendOk": true,
           "captureOk": true,
-          "measurementAttempt": 1,
-          "elapsedMs": 3185,
+          "measurementAttempt": 2,
+          "elapsedMs": 3349,
+          "targetFrameLength": null,
+          "intervalMs": 150,
           "byIface": {
             "이더넷": 5
           },
@@ -351,7 +383,9 @@
           "sendOk": true,
           "captureOk": true,
           "measurementAttempt": 1,
-          "elapsedMs": 3443,
+          "elapsedMs": 3184,
+          "targetFrameLength": null,
+          "intervalMs": 150,
           "byIface": {
             "이더넷": 5
           },
@@ -370,7 +404,9 @@
           "sendOk": true,
           "captureOk": true,
           "measurementAttempt": 1,
-          "elapsedMs": 3284,
+          "elapsedMs": 3240,
+          "targetFrameLength": null,
+          "intervalMs": 150,
           "byIface": {
             "이더넷": 5
           },
@@ -396,14 +432,16 @@
           "sent": 5,
           "expected": 5,
           "matched": 5,
-          "captureRows": 8,
+          "captureRows": 5,
           "lossPct": 0,
           "startOk": true,
           "captureStartAttempts": 1,
           "sendOk": true,
           "captureOk": true,
           "measurementAttempt": 1,
-          "elapsedMs": 3135,
+          "elapsedMs": 3375,
+          "targetFrameLength": null,
+          "intervalMs": 150,
           "byIface": {
             "enp1s0f1": 5
           },
@@ -422,7 +460,9 @@
           "sendOk": true,
           "captureOk": true,
           "measurementAttempt": 1,
-          "elapsedMs": 2843,
+          "elapsedMs": 3035,
+          "targetFrameLength": null,
+          "intervalMs": 150,
           "byIface": {
             "enp1s0f1": 5
           },
@@ -441,7 +481,9 @@
           "sendOk": true,
           "captureOk": true,
           "measurementAttempt": 1,
-          "elapsedMs": 3107,
+          "elapsedMs": 3299,
+          "targetFrameLength": null,
+          "intervalMs": 150,
           "byIface": {
             "enp1s0f1": 5
           },
@@ -474,7 +516,9 @@
           "sendOk": true,
           "captureOk": true,
           "measurementAttempt": 1,
-          "elapsedMs": 2903,
+          "elapsedMs": 2996,
+          "targetFrameLength": null,
+          "intervalMs": 150,
           "byIface": {
             "enp1s0f3": 5
           },
@@ -493,7 +537,9 @@
           "sendOk": true,
           "captureOk": true,
           "measurementAttempt": 1,
-          "elapsedMs": 2760,
+          "elapsedMs": 3091,
+          "targetFrameLength": null,
+          "intervalMs": 150,
           "byIface": {
             "enp1s0f3": 5
           },
@@ -512,7 +558,9 @@
           "sendOk": true,
           "captureOk": true,
           "measurementAttempt": 1,
-          "elapsedMs": 3076,
+          "elapsedMs": 3106,
+          "targetFrameLength": null,
+          "intervalMs": 150,
           "byIface": {
             "enp1s0f3": 5
           },
@@ -520,5 +568,448 @@
         }
       ]
     }
-  ]
+  ],
+  "quality": {
+    "enabled": true,
+    "directions": [
+      "Peer 이더넷 2 -> Local enp1s0f1",
+      "Peer 이더넷 -> Local enp1s0f3"
+    ],
+    "frameSizes": [
+      {
+        "direction": "Peer 이더넷 2 -> Local enp1s0f1",
+        "size": 64,
+        "trial": 64,
+        "sent": 3,
+        "expected": 3,
+        "matched": 3,
+        "captureRows": 3,
+        "lossPct": 0,
+        "startOk": true,
+        "captureStartAttempts": 1,
+        "sendOk": true,
+        "captureOk": true,
+        "measurementAttempt": 1,
+        "elapsedMs": 2348,
+        "targetFrameLength": 64,
+        "intervalMs": 60,
+        "byIface": {
+          "enp1s0f1": 3
+        },
+        "error": ""
+      },
+      {
+        "direction": "Peer 이더넷 2 -> Local enp1s0f1",
+        "size": 128,
+        "trial": 128,
+        "sent": 3,
+        "expected": 3,
+        "matched": 3,
+        "captureRows": 3,
+        "lossPct": 0,
+        "startOk": true,
+        "captureStartAttempts": 1,
+        "sendOk": true,
+        "captureOk": true,
+        "measurementAttempt": 1,
+        "elapsedMs": 2334,
+        "targetFrameLength": 128,
+        "intervalMs": 60,
+        "byIface": {
+          "enp1s0f1": 3
+        },
+        "error": ""
+      },
+      {
+        "direction": "Peer 이더넷 2 -> Local enp1s0f1",
+        "size": 256,
+        "trial": 256,
+        "sent": 3,
+        "expected": 3,
+        "matched": 3,
+        "captureRows": 3,
+        "lossPct": 0,
+        "startOk": true,
+        "captureStartAttempts": 1,
+        "sendOk": true,
+        "captureOk": true,
+        "measurementAttempt": 1,
+        "elapsedMs": 2264,
+        "targetFrameLength": 256,
+        "intervalMs": 60,
+        "byIface": {
+          "enp1s0f1": 3
+        },
+        "error": ""
+      },
+      {
+        "direction": "Peer 이더넷 2 -> Local enp1s0f1",
+        "size": 512,
+        "trial": 512,
+        "sent": 3,
+        "expected": 3,
+        "matched": 3,
+        "captureRows": 3,
+        "lossPct": 0,
+        "startOk": true,
+        "captureStartAttempts": 1,
+        "sendOk": true,
+        "captureOk": true,
+        "measurementAttempt": 1,
+        "elapsedMs": 2474,
+        "targetFrameLength": 512,
+        "intervalMs": 60,
+        "byIface": {
+          "enp1s0f1": 3
+        },
+        "error": ""
+      },
+      {
+        "direction": "Peer 이더넷 2 -> Local enp1s0f1",
+        "size": 1024,
+        "trial": 1024,
+        "sent": 3,
+        "expected": 3,
+        "matched": 3,
+        "captureRows": 3,
+        "lossPct": 0,
+        "startOk": true,
+        "captureStartAttempts": 1,
+        "sendOk": true,
+        "captureOk": true,
+        "measurementAttempt": 1,
+        "elapsedMs": 2554,
+        "targetFrameLength": 1024,
+        "intervalMs": 60,
+        "byIface": {
+          "enp1s0f1": 3
+        },
+        "error": ""
+      },
+      {
+        "direction": "Peer 이더넷 2 -> Local enp1s0f1",
+        "size": 1500,
+        "trial": 1500,
+        "sent": 3,
+        "expected": 3,
+        "matched": 3,
+        "captureRows": 3,
+        "lossPct": 0,
+        "startOk": true,
+        "captureStartAttempts": 1,
+        "sendOk": true,
+        "captureOk": true,
+        "measurementAttempt": 1,
+        "elapsedMs": 2722,
+        "targetFrameLength": 1500,
+        "intervalMs": 60,
+        "byIface": {
+          "enp1s0f1": 3
+        },
+        "error": ""
+      },
+      {
+        "direction": "Peer 이더넷 -> Local enp1s0f3",
+        "size": 64,
+        "trial": 64,
+        "sent": 3,
+        "expected": 3,
+        "matched": 3,
+        "captureRows": 3,
+        "lossPct": 0,
+        "startOk": true,
+        "captureStartAttempts": 1,
+        "sendOk": true,
+        "captureOk": true,
+        "measurementAttempt": 1,
+        "elapsedMs": 2295,
+        "targetFrameLength": 64,
+        "intervalMs": 60,
+        "byIface": {
+          "enp1s0f3": 3
+        },
+        "error": ""
+      },
+      {
+        "direction": "Peer 이더넷 -> Local enp1s0f3",
+        "size": 128,
+        "trial": 128,
+        "sent": 3,
+        "expected": 3,
+        "matched": 3,
+        "captureRows": 3,
+        "lossPct": 0,
+        "startOk": true,
+        "captureStartAttempts": 1,
+        "sendOk": true,
+        "captureOk": true,
+        "measurementAttempt": 1,
+        "elapsedMs": 2321,
+        "targetFrameLength": 128,
+        "intervalMs": 60,
+        "byIface": {
+          "enp1s0f3": 3
+        },
+        "error": ""
+      },
+      {
+        "direction": "Peer 이더넷 -> Local enp1s0f3",
+        "size": 256,
+        "trial": 256,
+        "sent": 3,
+        "expected": 3,
+        "matched": 3,
+        "captureRows": 3,
+        "lossPct": 0,
+        "startOk": true,
+        "captureStartAttempts": 1,
+        "sendOk": true,
+        "captureOk": true,
+        "measurementAttempt": 1,
+        "elapsedMs": 2244,
+        "targetFrameLength": 256,
+        "intervalMs": 60,
+        "byIface": {
+          "enp1s0f3": 3
+        },
+        "error": ""
+      },
+      {
+        "direction": "Peer 이더넷 -> Local enp1s0f3",
+        "size": 512,
+        "trial": 512,
+        "sent": 3,
+        "expected": 3,
+        "matched": 3,
+        "captureRows": 3,
+        "lossPct": 0,
+        "startOk": true,
+        "captureStartAttempts": 1,
+        "sendOk": true,
+        "captureOk": true,
+        "measurementAttempt": 1,
+        "elapsedMs": 2297,
+        "targetFrameLength": 512,
+        "intervalMs": 60,
+        "byIface": {
+          "enp1s0f3": 3
+        },
+        "error": ""
+      },
+      {
+        "direction": "Peer 이더넷 -> Local enp1s0f3",
+        "size": 1024,
+        "trial": 1024,
+        "sent": 3,
+        "expected": 3,
+        "matched": 3,
+        "captureRows": 3,
+        "lossPct": 0,
+        "startOk": true,
+        "captureStartAttempts": 1,
+        "sendOk": true,
+        "captureOk": true,
+        "measurementAttempt": 1,
+        "elapsedMs": 2239,
+        "targetFrameLength": 1024,
+        "intervalMs": 60,
+        "byIface": {
+          "enp1s0f3": 3
+        },
+        "error": ""
+      },
+      {
+        "direction": "Peer 이더넷 -> Local enp1s0f3",
+        "size": 1500,
+        "trial": 1500,
+        "sent": 3,
+        "expected": 3,
+        "matched": 3,
+        "captureRows": 3,
+        "lossPct": 0,
+        "startOk": true,
+        "captureStartAttempts": 1,
+        "sendOk": true,
+        "captureOk": true,
+        "measurementAttempt": 1,
+        "elapsedMs": 2291,
+        "targetFrameLength": 1500,
+        "intervalMs": 60,
+        "byIface": {
+          "enp1s0f3": 3
+        },
+        "error": ""
+      }
+    ],
+    "bursts": [
+      {
+        "direction": "Peer 이더넷 2 -> Local enp1s0f1",
+        "intervalMs": 150,
+        "trial": 150,
+        "sent": 5,
+        "expected": 5,
+        "matched": 5,
+        "captureRows": 5,
+        "lossPct": 0,
+        "startOk": true,
+        "captureStartAttempts": 1,
+        "sendOk": true,
+        "captureOk": true,
+        "measurementAttempt": 1,
+        "elapsedMs": 3017,
+        "targetFrameLength": 256,
+        "byIface": {
+          "enp1s0f1": 5
+        },
+        "error": ""
+      },
+      {
+        "direction": "Peer 이더넷 2 -> Local enp1s0f1",
+        "intervalMs": 50,
+        "trial": 50,
+        "sent": 5,
+        "expected": 5,
+        "matched": 5,
+        "captureRows": 6,
+        "lossPct": 0,
+        "startOk": true,
+        "captureStartAttempts": 1,
+        "sendOk": true,
+        "captureOk": true,
+        "measurementAttempt": 1,
+        "elapsedMs": 2920,
+        "targetFrameLength": 256,
+        "byIface": {
+          "enp1s0f1": 5
+        },
+        "error": ""
+      },
+      {
+        "direction": "Peer 이더넷 2 -> Local enp1s0f1",
+        "intervalMs": 10,
+        "trial": 10,
+        "sent": 5,
+        "expected": 5,
+        "matched": 5,
+        "captureRows": 5,
+        "lossPct": 0,
+        "startOk": true,
+        "captureStartAttempts": 1,
+        "sendOk": true,
+        "captureOk": true,
+        "measurementAttempt": 1,
+        "elapsedMs": 2990,
+        "targetFrameLength": 256,
+        "byIface": {
+          "enp1s0f1": 5
+        },
+        "error": ""
+      },
+      {
+        "direction": "Peer 이더넷 2 -> Local enp1s0f1",
+        "intervalMs": 0,
+        "trial": 0,
+        "sent": 5,
+        "expected": 5,
+        "matched": 5,
+        "captureRows": 5,
+        "lossPct": 0,
+        "startOk": true,
+        "captureStartAttempts": 1,
+        "sendOk": true,
+        "captureOk": true,
+        "measurementAttempt": 1,
+        "elapsedMs": 3367,
+        "targetFrameLength": 256,
+        "byIface": {
+          "enp1s0f1": 5
+        },
+        "error": ""
+      },
+      {
+        "direction": "Peer 이더넷 -> Local enp1s0f3",
+        "intervalMs": 150,
+        "trial": 150,
+        "sent": 5,
+        "expected": 5,
+        "matched": 5,
+        "captureRows": 5,
+        "lossPct": 0,
+        "startOk": true,
+        "captureStartAttempts": 1,
+        "sendOk": true,
+        "captureOk": true,
+        "measurementAttempt": 1,
+        "elapsedMs": 3387,
+        "targetFrameLength": 256,
+        "byIface": {
+          "enp1s0f3": 5
+        },
+        "error": ""
+      },
+      {
+        "direction": "Peer 이더넷 -> Local enp1s0f3",
+        "intervalMs": 50,
+        "trial": 50,
+        "sent": 5,
+        "expected": 5,
+        "matched": 5,
+        "captureRows": 5,
+        "lossPct": 0,
+        "startOk": true,
+        "captureStartAttempts": 1,
+        "sendOk": true,
+        "captureOk": true,
+        "measurementAttempt": 1,
+        "elapsedMs": 3142,
+        "targetFrameLength": 256,
+        "byIface": {
+          "enp1s0f3": 5
+        },
+        "error": ""
+      },
+      {
+        "direction": "Peer 이더넷 -> Local enp1s0f3",
+        "intervalMs": 10,
+        "trial": 10,
+        "sent": 5,
+        "expected": 5,
+        "matched": 5,
+        "captureRows": 5,
+        "lossPct": 0,
+        "startOk": true,
+        "captureStartAttempts": 1,
+        "sendOk": true,
+        "captureOk": true,
+        "measurementAttempt": 1,
+        "elapsedMs": 3007,
+        "targetFrameLength": 256,
+        "byIface": {
+          "enp1s0f3": 5
+        },
+        "error": ""
+      },
+      {
+        "direction": "Peer 이더넷 -> Local enp1s0f3",
+        "intervalMs": 0,
+        "trial": 0,
+        "sent": 5,
+        "expected": 5,
+        "matched": 5,
+        "captureRows": 5,
+        "lossPct": 0,
+        "startOk": true,
+        "captureStartAttempts": 1,
+        "sendOk": true,
+        "captureOk": true,
+        "measurementAttempt": 1,
+        "elapsedMs": 3094,
+        "targetFrameLength": 256,
+        "byIface": {
+          "enp1s0f3": 5
+        },
+        "error": ""
+      }
+    ]
+  }
 }

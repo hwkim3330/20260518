@@ -8,6 +8,9 @@ const peer = process.env.PEER_URL || 'http://172.31.51.213:8080';
 const count = Number(process.env.FRAMES || 5);
 const trials = Number(process.env.TRIALS || 5);
 const measurementRetries = Number(process.env.MEASUREMENT_RETRIES || 3);
+const qualityEnabled = process.env.QUALITY !== '0';
+const sweepSizes = (process.env.SWEEP_SIZES || '64,128,256,512,1024,1500').split(',').map(Number).filter(Boolean);
+const burstIntervals = (process.env.BURST_INTERVALS || '150,50,10,0').split(',').map(Number).filter((v) => Number.isFinite(v));
 
 const directions = [
   { name: 'Local enp1s0f1 -> Peer 이더넷 2', srcBase: local, dstBase: peer, srcIf: 'enp1s0f1', srcMac: 'a0:36:9f:a8:e4:a9', srcIp: '169.254.141.14', dstIf: '이더넷 2', dstMac: 'c8:4d:44:20:40:5b', dstIp: '169.254.23.158' },
@@ -15,6 +18,7 @@ const directions = [
   { name: 'Peer 이더넷 2 -> Local enp1s0f1', srcBase: peer, dstBase: local, srcIf: '이더넷 2', srcMac: 'c8:4d:44:20:40:5b', srcIp: '169.254.23.158', dstIf: 'enp1s0f1', dstMac: 'a0:36:9f:a8:e4:a9', dstIp: '169.254.141.14' },
   { name: 'Peer 이더넷 -> Local enp1s0f3', srcBase: peer, dstBase: local, srcIf: '이더넷', srcMac: 'c8:4d:44:26:3b:a6', srcIp: '169.254.204.140', dstIf: 'enp1s0f3', dstMac: 'a0:36:9f:a8:e4:ab', dstIp: '169.254.12.243' }
 ];
+const qualityDirections = process.env.QUALITY_ALL_DIRECTIONS === '1' ? directions : null;
 
 async function req(method, url, body, timeout = 12000) {
   const res = await fetch(url, {
@@ -48,12 +52,17 @@ async function startCaptureWithRetry(d) {
   return { ...last, attempts: 3 };
 }
 
-async function runAttempt(d, trial, measurementAttempt) {
+async function runAttempt(d, trial, measurementAttempt, opts = {}) {
+  const frameCount = opts.count ?? count;
+  const intervalMs = opts.intervalMs ?? 150;
   const safeIf = d.srcIf.replace(/[^a-zA-Z0-9]/g, '_');
-  const marker = `KETI_UCAST_${trial}_${measurementAttempt}_${safeIf}_${Date.now()}`;
+  const marker = `${opts.markerPrefix || 'KETI_UCAST'}_${trial}_${measurementAttempt}_${safeIf}_${Date.now()}`;
   const start = await startCaptureWithRetry(d);
   await new Promise((resolve) => setTimeout(resolve, 700));
   const sendStarted = Date.now();
+  const payloadData = opts.payloadSize
+    ? `${marker}|${'Q'.repeat(Math.max(0, opts.payloadSize - marker.length - 1))}`
+    : marker;
   const send = await req('POST', `${d.srcBase}/api/send`, {
     interface: d.srcIf,
     protocol: 'udp',
@@ -63,36 +72,75 @@ async function runAttempt(d, trial, measurementAttempt) {
     dstIp: d.dstIp,
     srcPort: 46100,
     dstPort: 56100,
-    count,
-    intervalMs: 150,
-    payload: { mode: 'text', data: marker }
+    count: frameCount,
+    intervalMs,
+    targetFrameLength: opts.targetFrameLength,
+    payload: { mode: 'text', data: payloadData }
   }, 45000).catch((e) => ({ ok: false, status: 'ERR', data: { error: e.message } }));
-  await new Promise((resolve) => setTimeout(resolve, 2500));
+  await new Promise((resolve) => setTimeout(resolve, opts.waitMs ?? 2500));
   await req('POST', `${d.dstBase}/api/capture/stop`, {}, 6000).catch(() => {});
   const cap = await req('GET', `${d.dstBase}/api/capture/packets?limit=3000`, null, 10000)
     .catch((e) => ({ ok: false, status: 'ERR', data: { error: e.message, rows: [] } }));
   const rows = cap.data.rows || [];
   const matches = rows.filter((row) => textOf(row).includes(marker));
-  const matched = Math.min(matches.length, count);
+  const matched = Math.min(matches.length, frameCount);
   const byIface = {};
   for (const row of matches) byIface[row.interface || 'unknown'] = (byIface[row.interface || 'unknown'] || 0) + 1;
   return {
     direction: d.name,
     trial,
     sent: send.data.framesSent || send.data.stdout?.framesSent || 0,
-    expected: count,
+    expected: frameCount,
     matched,
     captureRows: rows.length,
-    lossPct: Number((100 * (count - matches.length) / count).toFixed(1)),
+    lossPct: Number((100 * (frameCount - matches.length) / frameCount).toFixed(1)),
     startOk: start.ok,
     captureStartAttempts: start.attempts,
     sendOk: send.ok,
     captureOk: cap.ok,
     measurementAttempt,
     elapsedMs: Date.now() - sendStarted,
+    targetFrameLength: opts.targetFrameLength || null,
+    intervalMs,
     byIface,
     error: start.data.error || send.data.error || cap.data.error || ''
   };
+}
+
+async function runQualitySweep() {
+  if (!qualityEnabled) return { enabled: false, frameSizes: [], bursts: [] };
+  const dirs = qualityDirections || [directions[2], directions[3]];
+  const frameSizes = [];
+  for (const d of dirs) {
+    for (const size of sweepSizes) {
+      const result = await runAttempt(d, size, 1, {
+        markerPrefix: 'KETI_SIZE',
+        count: 3,
+        intervalMs: 60,
+        targetFrameLength: size,
+        payloadSize: Math.max(16, size - 42),
+        waitMs: 1800
+      });
+      frameSizes.push({ direction: d.name, size, ...result });
+      console.log(`${d.name} size ${size}: ${result.matched}/${result.expected} elapsed=${result.elapsedMs}ms rows=${result.captureRows} err=${result.error}`);
+    }
+  }
+  const bursts = [];
+  for (const d of dirs) {
+    for (const intervalMs of burstIntervals) {
+      const result = await runAttempt(d, intervalMs, 1, {
+        markerPrefix: 'KETI_BURST',
+        count: 5,
+        intervalMs,
+        targetFrameLength: 256,
+        payloadSize: 96,
+        waitMs: 2500
+      });
+      bursts.push({ direction: d.name, intervalMs, ...result });
+      console.log(`${d.name} burst ${intervalMs}ms: ${result.matched}/${result.expected} elapsed=${result.elapsedMs}ms rows=${result.captureRows} err=${result.error}`);
+    }
+  }
+  return { enabled: true, directions: dirs.map((d) => d.name), frameSizes, bursts };
 }
 
 async function runOne(d, trial) {
@@ -182,6 +230,41 @@ function writeReport(report) {
   const allTrials = report.summary.flatMap((s) => s.trials);
   const avgTrialMs = Math.round(allTrials.reduce((sum, t) => sum + t.elapsedMs, 0) / Math.max(1, allTrials.length));
   const setupRetries = allTrials.reduce((sum, t) => sum + Math.max(0, (t.captureStartAttempts || 1) - 1), 0);
+  const quality = report.quality || { enabled: false, frameSizes: [], bursts: [] };
+  const sizeLabels = [...new Set((quality.frameSizes || []).map((r) => r.size))].sort((a, b) => a - b).map(String);
+  const qualityDirLabels = [...new Set((quality.frameSizes || []).map((r) => r.direction))];
+  const sizeDatasets = qualityDirLabels.map((direction, index) => ({
+    label: direction,
+    data: sizeLabels.map((size) => {
+      const rows = (quality.frameSizes || []).filter((r) => r.direction === direction && String(r.size) === size);
+      if (!rows.length) return null;
+      return Number((100 * rows.reduce((sum, r) => sum + r.matched, 0) / rows.reduce((sum, r) => sum + r.expected, 0)).toFixed(1));
+    }),
+    borderColor: ['#0f6f78', '#f59e0b', '#2563eb', '#16a34a'][index % 4],
+    backgroundColor: ['#0f6f78', '#f59e0b', '#2563eb', '#16a34a'][index % 4],
+    tension: 0.25
+  }));
+  const intervalLabels = [...new Set((quality.bursts || []).map((r) => r.intervalMs))].sort((a, b) => b - a).map(String);
+  const burstDirLabels = [...new Set((quality.bursts || []).map((r) => r.direction))];
+  const burstRuntimeDatasets = burstDirLabels.map((direction, index) => ({
+    label: direction,
+    data: intervalLabels.map((interval) => {
+      const rows = (quality.bursts || []).filter((r) => r.direction === direction && String(r.intervalMs) === interval);
+      return rows.length ? Math.round(rows.reduce((sum, r) => sum + r.elapsedMs, 0) / rows.length) : null;
+    }),
+    borderColor: ['#0f6f78', '#f59e0b', '#2563eb', '#16a34a'][index % 4],
+    backgroundColor: ['#0f6f78', '#f59e0b', '#2563eb', '#16a34a'][index % 4],
+    tension: 0.25
+  }));
+  const burstMatchDatasets = burstDirLabels.map((direction, index) => ({
+    label: direction,
+    data: intervalLabels.map((interval) => {
+      const rows = (quality.bursts || []).filter((r) => r.direction === direction && String(r.intervalMs) === interval);
+      if (!rows.length) return null;
+      return Number((100 * rows.reduce((sum, r) => sum + r.matched, 0) / rows.reduce((sum, r) => sum + r.expected, 0)).toFixed(1));
+    }),
+    backgroundColor: ['#0f6f78', '#f59e0b', '#2563eb', '#16a34a'][index % 4]
+  }));
   const topologyPairs = [
     {
       port: 'P0-P1',
@@ -259,9 +342,10 @@ function writeReport(report) {
     .heatmap{padding:16px;margin:16px 0}.heatRow{display:grid;grid-template-columns:minmax(260px,.95fr) 1.5fr;gap:10px;align-items:center;padding:7px 0;border-top:1px solid #edf2f7}.heatRow:first-of-type{border-top:0}
     .heatRow strong{font-size:12px}.heatCell{display:inline-block;margin:3px;border-radius:8px;padding:5px 8px;font-family:ui-monospace,SFMono-Regular,monospace;font-size:12px;font-weight:800}
     .heatCell.ok{background:#dcfce7;color:#14532d}.heatCell.partial{background:#fef3c7;color:#92400e}.heatCell.fail{background:#fee2e2;color:#991b1b}
+    .qualityGrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0}
     table{width:100%;border-collapse:separate;border-spacing:0;margin-top:16px;overflow:hidden}th,td{padding:10px 12px;border-bottom:1px solid #e5edf3;text-align:left;vertical-align:top}th{background:#edf6f7;font-size:12px;text-transform:uppercase;color:#456}td:nth-child(n+3){font-family:ui-monospace,SFMono-Regular,monospace}
     .pill{display:inline-block;color:white;border-radius:999px;padding:4px 9px;font-size:11px;font-weight:900;white-space:nowrap}.muted{color:#64748b}
-    @media(max-width:900px){.cards,.charts,.topoLinkCard,.heatRow{grid-template-columns:1fr}.switchPath{min-height:120px}}
+    @media(max-width:900px){.cards,.charts,.qualityGrid,.topoLinkCard,.heatRow{grid-template-columns:1fr}.switchPath{min-height:120px}}
   </style>
 </head>
 <body>
@@ -289,6 +373,12 @@ function writeReport(report) {
       <div class="chart"><h3>Trial Runtime Trend</h3><canvas id="elapsed"></canvas></div>
       <div class="chart"><h3>Setup / API Health</h3><canvas id="api"></canvas></div>
     </div>
+    ${quality.enabled ? `<div class="qualityGrid">
+      <div class="chart"><h3>Frame Size Sweep — Marker RX</h3><canvas id="sizeSweep"></canvas></div>
+      <div class="chart"><h3>Burst Interval — Runtime</h3><canvas id="burstRuntime"></canvas></div>
+      <div class="chart"><h3>Burst Interval — Marker RX</h3><canvas id="burstMatch"></canvas></div>
+      <div class="chart"><h3>Quality Scope</h3><p class="muted">Frame sizes: ${esc(sizeLabels.join(', '))} bytes. Burst intervals: ${esc(intervalLabels.join(', '))} ms. Quality sweep runs on ${esc((quality.directions || []).join(' / '))} by default to keep runtime bounded.</p></div>
+    </div>` : ''}
     <div class="heatmap"><h3>Trial Stability Heatmap</h3>${heatmap}</div>
     <table><thead><tr><th>Direction</th><th>Verdict</th><th>Matched</th><th>RX</th><th>API Errors</th><th>Trials</th></tr></thead><tbody>${rows}</tbody></table>
     <p class="muted">Generated artifact: <code>/reports/switch-deep-latest.html</code> and <code>/reports/switch-deep-latest.json</code>.</p>
@@ -306,6 +396,11 @@ function writeReport(report) {
       {label:'API errors',data:${JSON.stringify(apiErrors)},backgroundColor:'#dc2626'},
       {label:'Avg runtime ms',data:${JSON.stringify(avgElapsed)},backgroundColor:'#f59e0b',yAxisID:'y1'}
     ]},options:{responsive:true,plugins:{legend:{position:'bottom'}},scales:{y:{beginAtZero:true,ticks:{precision:0}},y1:{position:'right',beginAtZero:true,grid:{drawOnChartArea:false},title:{display:true,text:'ms'}}}}});
+    if (${quality.enabled ? 'true' : 'false'}) {
+      new Chart(document.getElementById('sizeSweep'),{type:'line',data:{labels:${JSON.stringify(sizeLabels)},datasets:${JSON.stringify(sizeDatasets)}},options:{responsive:true,plugins:{legend:{position:'bottom'}},scales:{y:{min:0,max:100,title:{display:true,text:'RX %'}},x:{title:{display:true,text:'Frame bytes'}}}}});
+      new Chart(document.getElementById('burstRuntime'),{type:'line',data:{labels:${JSON.stringify(intervalLabels.map((v) => `${v} ms`))},datasets:${JSON.stringify(burstRuntimeDatasets)}},options:{responsive:true,plugins:{legend:{position:'bottom'}},scales:{y:{beginAtZero:true,title:{display:true,text:'ms'}},x:{title:{display:true,text:'Send interval'}}}}});
+      new Chart(document.getElementById('burstMatch'),{type:'bar',data:{labels:${JSON.stringify(intervalLabels.map((v) => `${v} ms`))},datasets:${JSON.stringify(burstMatchDatasets)}},options:{responsive:true,plugins:{legend:{position:'bottom'}},scales:{y:{min:0,max:100,title:{display:true,text:'RX %'}}}}});
+    }
   </script>
 </body>
 </html>`;
@@ -323,6 +418,7 @@ function writeReport(report) {
   }
   const report = { generatedAt: new Date().toISOString(), local, peer, count, trials, measurementRetries, results };
   report.summary = summarize(results);
+  report.quality = await runQualitySweep();
   writeReport(report);
   console.log('Report: /reports/switch-deep-latest.html');
 })().catch((err) => {
