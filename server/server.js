@@ -199,7 +199,6 @@ app.use('/api', require('./routes/tests'));
 app.use('/api', require('./routes/scenario'));
 app.use('/api', require('./routes/register'));
 app.use('/api', require('./routes/fdb'));
-app.use('/api', require('./routes/serial'));
 app.use('/api', require('./routes/mdio'));
 app.use('/api', require('./routes/counter'));
 app.use('/api', require('./routes/timestamp'));

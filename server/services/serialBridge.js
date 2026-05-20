@@ -157,8 +157,14 @@ class SerialSession {
     });
   }
 
-  setSignals(signals) {
+  async setSignals(signals) {
     if (!this.port) return Promise.resolve();
+    if (signals.brk || signals.break) {
+      await new Promise(resolve => this.port.set({ brk: true }, () => resolve()));
+      await new Promise(resolve => setTimeout(resolve, 270));
+      await new Promise(resolve => this.port.set({ brk: false }, () => resolve()));
+      return;
+    }
     return new Promise(resolve => { this.port.set(signals, () => resolve()); });
   }
 
@@ -191,8 +197,8 @@ class SttySession {
     this.path       = devPath;
     this.lineBuffer = '';
     this._cmdQueue  = [];
-    this._fd        = null;
-    this._reader    = null;
+    this._proc      = null;
+    this._wfd       = null;
   }
 
   open(opts = {}) {
@@ -200,19 +206,31 @@ class SttySession {
     const dev  = this.path;
 
     return new Promise((resolve, reject) => {
-      // Configure the port with stty
       execFile('stty', ['-F', dev,
         String(baud), 'raw', '-echo',
         'cs8', '-cstopb', '-parenb',
-        'min', '1', 'time', '0',
       ], (err) => {
-        if (err) { return reject(new Error(`stty failed: ${err.message}`)); }
+        if (err) return reject(new Error(`stty: ${err.message}`));
 
-        // Open the device for read/write
-        fs.open(dev, fs.constants.O_RDWR | fs.constants.O_NOCTTY | fs.constants.O_NONBLOCK, (ferr, fd) => {
-          if (ferr) { return reject(new Error(`Cannot open ${dev}: ${ferr.message}`)); }
-          this._fd = fd;
-          this._startRead();
+        // spawn cat to read the device — event-driven, no polling
+        this._proc = spawn('cat', [dev]);
+        this._proc.stdout.on('data', chunk => this._onData(chunk));
+        this._proc.on('close', () => {
+          if (this._wfd !== null) {
+            const fd = this._wfd; this._wfd = null;
+            fs.close(fd, () => {});
+          }
+          sessions.delete(dev);
+          events.emit('serial', { kind: 'serial', type: 'closed', session: dev });
+        });
+        this._proc.on('error', err => {
+          events.emit('serial', { kind: 'serial', type: 'error', message: err.message, session: dev });
+        });
+
+        // open a write-only fd for sending data
+        fs.open(dev, fs.constants.O_WRONLY | fs.constants.O_NOCTTY, (ferr, fd) => {
+          if (ferr) { this._proc.kill(); return reject(new Error(`open ${dev}: ${ferr.message}`)); }
+          this._wfd = fd;
           events.emit('serial', { kind: 'serial', type: 'opened', session: dev });
           resolve();
         });
@@ -220,70 +238,49 @@ class SttySession {
     });
   }
 
-  _startRead() {
-    if (!this._fd) return;
-    const buf = Buffer.alloc(256);
-    const readLoop = () => {
-      if (this._fd === null) return;
-      fs.read(this._fd, buf, 0, buf.length, null, (err, bytesRead) => {
-        if (err) {
-          if (err.code === 'EAGAIN' || err.code === 'EWOULDBLOCK') {
-            // No data yet, wait a bit
-            setTimeout(readLoop, 20);
-            return;
-          }
-          events.emit('serial', { kind: 'serial', type: 'error', message: err.message, session: this.path });
-          return;
-        }
-        if (bytesRead > 0) {
-          const chunk = buf.slice(0, bytesRead);
-          const hex   = chunk.toString('hex');
-          events.emit('serial', { kind: 'serial', rxType: 'rx', hex, session: this.path });
+  _onData(chunk) {
+    const hex = chunk.toString('hex');
+    events.emit('serial', { kind: 'serial', rxType: 'rx', hex, session: this.path });
 
-          this.lineBuffer += chunk.toString('utf8');
-          const parts = this.lineBuffer.split(/\r?\n/);
-          this.lineBuffer = parts.pop() ?? '';
-          for (const line of parts) {
-            const t = line.trim();
-            if (!t) continue;
-            if (this._cmdQueue.length > 0 && (t.startsWith('OK') || t.startsWith('ERR'))) {
-              const { resolve: res, reject: rej, timer } = this._cmdQueue.shift();
-              clearTimeout(timer);
-              if (t.startsWith('OK')) res(t.slice(2).trim()); else rej(new Error(t.slice(3).trim() || 'ERR'));
-            }
-          }
-        }
-        setTimeout(readLoop, 10);
-      });
-    };
-    readLoop();
+    this.lineBuffer += chunk.toString('utf8');
+    const parts = this.lineBuffer.split(/\r?\n/);
+    this.lineBuffer = parts.pop() ?? '';
+    for (const line of parts) {
+      const t = line.trim();
+      if (!t) continue;
+      if (this._cmdQueue.length > 0 && (t.startsWith('OK') || t.startsWith('ERR'))) {
+        const { resolve: res, reject: rej, timer } = this._cmdQueue.shift();
+        clearTimeout(timer);
+        if (t.startsWith('OK')) res(t.slice(2).trim()); else rej(new Error(t.slice(3).trim() || 'ERR'));
+      }
+    }
   }
 
   close() {
     return new Promise(resolve => {
-      const fd = this._fd;
-      this._fd = null;
-      if (fd === null) { resolve(); return; }
-      fs.close(fd, () => {
+      const fd = this._wfd;
+      this._wfd = null;
+      if (this._proc) { this._proc.kill(); this._proc = null; }
+      if (fd !== null) fs.close(fd, () => {
         sessions.delete(this.path);
-        events.emit('serial', { kind: 'serial', type: 'closed', session: this.path });
         resolve();
       });
+      else { sessions.delete(this.path); resolve(); }
     });
   }
 
   write({ hex, text }) {
-    if (this._fd === null) return Promise.reject(new Error(`Session not open: ${this.path}`));
+    if (this._wfd === null) return Promise.reject(new Error(`Session not open: ${this.path}`));
     const data = hex ? Buffer.from(hex, 'hex') : Buffer.from(text ?? '', 'utf8');
     return new Promise((resolve, reject) => {
-      fs.write(this._fd, data, err => err ? reject(err) : resolve());
+      fs.write(this._wfd, data, err => err ? reject(err) : resolve());
     });
   }
 
   setSignals() { return Promise.resolve(); }
 
   command(cmd, timeoutMs = 3000) {
-    if (this._fd === null) return Promise.reject(new Error('Serial port not open'));
+    if (this._wfd === null) return Promise.reject(new Error('Serial port not open'));
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         const i = this._cmdQueue.findIndex(q => q.timer === timer);
@@ -292,7 +289,7 @@ class SttySession {
       }, timeoutMs);
       this._cmdQueue.push({ resolve, reject, timer });
       const line = Buffer.from(cmd.endsWith('\n') ? cmd : cmd + '\r\n', 'utf8');
-      fs.write(this._fd, line, err => {
+      fs.write(this._wfd, line, err => {
         if (err) {
           const i = this._cmdQueue.findIndex(q => q.timer === timer);
           if (i >= 0) this._cmdQueue.splice(i, 1);
@@ -349,7 +346,14 @@ async function open(devPath, opts = {}) {
     throw new Error('serialport npm이 설치되지 않았습니다. 실행: npm install serialport');
   }
 
-  await session.open(opts);
+  try {
+    await session.open(opts);
+  } catch (err) {
+    if (err.message.includes('EACCES') || err.message.includes('Permission denied') || err.message.includes('access')) {
+      throw new Error(`${err.message} — Linux: run: sudo usermod -aG dialout $USER && newgrp dialout`);
+    }
+    throw err;
+  }
   sessions.set(devPath, session);
   return { sessionId: devPath, session: devPath };
 }

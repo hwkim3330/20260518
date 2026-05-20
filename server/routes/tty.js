@@ -167,7 +167,9 @@ router.post('/serial/send', async (req, res) => {
       return res.json({ ok: true, ...(d || {}) });
     }
     const { sessionId, session, hex, text } = req.body || {};
-    await req.app.locals.serialBridge.write(sessionId || session, { hex, text });
+    const sid = req.app.locals.serialBridge.getSession(sessionId || session);
+    if (!sid) return res.status(400).json({ ok: false, error: 'Serial port not open' });
+    await req.app.locals.serialBridge.write(sid, { hex, text });
     res.json({ ok: true });
   } catch (e) { wErr(res, e); }
 });
@@ -188,6 +190,9 @@ router.post('/serial/break', async (req, res) => {
       const d = await req.app.locals.localCmd('serialControl', { cmd: 'break' }, 5000);
       return res.json({ ok: true, ...(d || {}) });
     }
+    const { serialBridge } = req.app.locals;
+    const sid = serialBridge.getSession();
+    if (sid) await serialBridge.setSignals(sid, { brk: true });
     res.json({ ok: true });
   } catch (e) { wErr(res, e); }
 });

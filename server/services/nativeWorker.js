@@ -115,6 +115,8 @@ async function dispatch(command, payload, services) {
       const signals = {};
       if (payload.rts !== undefined) signals.rts = !!payload.rts;
       if (payload.dtr !== undefined) signals.dtr = !!payload.dtr;
+      if (payload.brk !== undefined) signals.brk = !!payload.brk;
+      if (payload.cmd === 'break') signals.brk = true;
       await serialBridge.setSignals(sid, signals);
       return { ...signals };
     }

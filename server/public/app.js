@@ -1648,45 +1648,69 @@ function appendHyperTerm(text) {
 
 // TTY streaming for native Linux serial (no C# worker)
 let _ttyStreamCtrl = null;
+let _ttySession    = null;
 function startTtyStream(session) {
+  _ttySession = session;
   if (_ttyStreamCtrl) { _ttyStreamCtrl.abort(); }
   _ttyStreamCtrl = new AbortController();
-  const url = `/api/tty/stream${session ? `?session=${encodeURIComponent(session)}` : ''}`;
+  const ctrl = _ttyStreamCtrl;
+  const url  = `/api/tty/stream${session ? `?session=${encodeURIComponent(session)}` : ''}`;
   let buf = '';
+  let retries = 0;
 
-  fetch(url, { signal: _ttyStreamCtrl.signal })
-    .then(r => {
-      const reader = r.body.getReader();
-      const decoder = new TextDecoder();
-      function read() {
-        reader.read().then(({ done, value }) => {
-          if (done) return;
-          buf += decoder.decode(value, { stream: true });
-          const parts = buf.split('\n');
-          buf = parts.pop() ?? '';
-          for (const part of parts) {
-            const s = part.trim();
-            if (!s) continue;
-            try {
-              const msg = JSON.parse(s);
-              if (msg.type === 'rx' && msg.hex) {
-                const bytes = Uint8Array.from(msg.hex.match(/.{1,2}/g) || [],
-                  b => parseInt(b, 16));
-                const text = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
-                text.split(/\r?\n/).filter(l => l.trim()).forEach(l => appendHyperTerm(l));
-              } else if (msg.type === 'closed') {
-                updateSerialUI(false, 'disconnected');
-                stopTtyStream();
-              } else if (msg.type === 'error') {
-                appendHyperTerm(`[ERR] ${msg.message}`);
-              }
-            } catch { /* ignore parse errors */ }
-          }
-          read();
-        }).catch(() => {});
-      }
-      read();
-    }).catch(() => {});
+  function connect() {
+    if (ctrl.signal.aborted) return;
+    buf = '';
+    fetch(url, { signal: ctrl.signal })
+      .then(r => {
+        retries = 0;
+        const reader  = r.body.getReader();
+        const decoder = new TextDecoder();
+        function read() {
+          reader.read().then(({ done, value }) => {
+            if (ctrl.signal.aborted) return;
+            if (done) {
+              if (retries < 5) { retries++; setTimeout(connect, 1500); }
+              return;
+            }
+            buf += decoder.decode(value, { stream: true });
+            const parts = buf.split('\n');
+            buf = parts.pop() ?? '';
+            for (const part of parts) {
+              const s = part.trim();
+              if (!s) continue;
+              try {
+                const msg = JSON.parse(s);
+                if (msg.type === 'rx' && msg.hex) {
+                  const bytes = Uint8Array.from(msg.hex.match(/.{1,2}/g) || [], b => parseInt(b, 16));
+                  const text  = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+                  const lines = text.split(/\r?\n/);
+                  // last element may be partial line — only emit complete lines
+                  for (let i = 0; i < lines.length - 1; i++) {
+                    if (lines[i]) appendHyperTerm(lines[i]);
+                  }
+                  if (lines[lines.length - 1]) appendHyperTerm(lines[lines.length - 1]);
+                } else if (msg.type === 'closed') {
+                  updateSerialUI(false, 'disconnected');
+                  stopTtyStream();
+                } else if (msg.type === 'error') {
+                  appendHyperTerm(`[ERR] ${msg.message}`);
+                }
+              } catch { /* ignore json parse errors */ }
+            }
+            read();
+          }).catch(err => {
+            if (ctrl.signal.aborted) return;
+            if (retries < 5) { retries++; setTimeout(connect, 1500); }
+          });
+        }
+        read();
+      }).catch(err => {
+        if (ctrl.signal.aborted) return;
+        if (retries < 5) { retries++; setTimeout(connect, 2000); }
+      });
+  }
+  connect();
 }
 
 function stopTtyStream() {
@@ -1764,10 +1788,22 @@ async function toggleSerial() {
 async function sendSerial() {
   const inp = $('serialInput');
   if (!inp?.value.trim()) return;
-  const text = inp.value + '\r\n';
+  const hexMode = $('serialHex')?.checked;
   try {
-    await api('/api/serial/send', { method: 'POST', body: JSON.stringify({ text }) });
-    appendHyperTerm(`> ${inp.value}`);
+    let body, echo;
+    if (hexMode) {
+      const clean = inp.value.replace(/\s+/g, '');
+      if (!/^[0-9a-fA-F]*$/.test(clean) || clean.length % 2 !== 0) {
+        toast('잘못된 HEX 형식 (예: 0D0A)', 'warn'); return;
+      }
+      body = JSON.stringify({ hex: clean });
+      echo = `> [HEX] ${clean}`;
+    } else {
+      body = JSON.stringify({ text: inp.value + '\r\n' });
+      echo = `> ${inp.value}`;
+    }
+    await api('/api/serial/send', { method: 'POST', body });
+    appendHyperTerm(echo);
     inp.value = '';
   } catch (err) { toast(`전송 실패: ${err.message}`, 'bad'); }
 }
