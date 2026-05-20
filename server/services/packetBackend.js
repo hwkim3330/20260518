@@ -197,17 +197,22 @@ function startCapture(ifaceNames, filter, onPacket, onError) {
         c.setMinBytes && c.setMinBytes(0);
 
         c.on('packet', (nbytes) => {
-          try {
-            const frame = Buffer.from(buf.slice(0, nbytes));
-            const no      = ++captureSeq;
-            const ts      = Date.now() / 1000;
-            const decoded = decodeFrame(frame);
-            const ifName  = resolveDeviceName(dev);
-            const record  = { no, timestamp: ts, interface: ifName, length: nbytes, frameHex: frame.toString('hex'), decoded };
-            captureRows.push(record);
-            onPacket(ifName, frame, record);
-            for (const cb of captureStreamCbs) { try { cb(record); } catch {} }
-          } catch {}
+          const now = Date.now();
+          if (now - _lastCapture < CAPTURE_RATE_MS) { _capDropped++; return; }
+          _lastCapture = now;
+          setImmediate(() => {
+            try {
+              const frame   = Buffer.from(buf.slice(0, nbytes));
+              const no      = ++captureSeq;
+              const decoded = decodeFrame(frame);
+              const ifName  = resolveDeviceName(dev);
+              const record  = { no, timestamp: now / 1000, interface: ifName, length: nbytes, frameHex: frame.toString('hex'), decoded };
+              if (captureRows.length >= MAX_CAPTURE_ROWS) captureRows.shift();
+              captureRows.push(record);
+              onPacket(ifName, frame, record);
+              for (const cb of captureStreamCbs) { try { cb(record); } catch {} }
+            } catch {}
+          });
         });
         c.on('error', (err) => { try { onError && onError(err); } catch {} });
 
@@ -359,11 +364,16 @@ function decodeFrame(buf) {
 
 // ── Capture buffer ─────────────────────────────────────────────────────────────
 
-let captureSeq  = 0;
-let captureRows = [];
-let captureStreamCbs = [];
+const MAX_CAPTURE_ROWS = 5000;
+const CAPTURE_RATE_MS  = 10;   // min ms between processed packets (100 pkt/s max)
 
-function clearCapture() { captureSeq = 0; captureRows = []; }
+let captureSeq       = 0;
+let captureRows      = [];
+let captureStreamCbs = [];
+let _lastCapture     = 0;
+let _capDropped      = 0;
+
+function clearCapture() { captureSeq = 0; captureRows = []; _capDropped = 0; }
 
 function getCaptures(limit = 1000, offset = 0) {
   const slice = captureRows.slice(offset, offset + limit);

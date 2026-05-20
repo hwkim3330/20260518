@@ -39,10 +39,12 @@ router.post('/build', async (req, res) => {
         if (!e.workerError || !/unsupported protocol/i.test(e.message)) throw e;
       }
     }
-    // Linux or unsupported protocol: build frame locally and return hex
+    // Linux or unsupported protocol: build frame locally and return hex + decoded
     const { buildFrame, normalizeProfile } = require('../services/frameBuilder');
-    const frame = buildFrame(normalizeProfile(req.body || {}));
-    const data  = { frameHex: frame.toString('hex'), frameLength: frame.length };
+    const { decodeFrame } = require('../services/packetBackend');
+    const frame   = buildFrame(normalizeProfile(req.body || {}));
+    const decoded = decodeFrame(frame);
+    const data    = { frameHex: frame.toString('hex'), frameLength: frame.length, decoded };
     res.json({ ok: true, ...data, stdout: data });
   } catch (err) { workerErr(res, err); }
 });
