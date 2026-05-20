@@ -23,6 +23,25 @@ function getDeviceList() {
   try { return Cap.deviceList() || []; } catch { return []; }
 }
 
+/** Reverse-resolve pcap device name → human-readable OS NIC name. */
+function resolveDeviceName(pcapName) {
+  if (!Cap || !pcapName) return pcapName;
+  const nics = os.networkInterfaces();
+  const devs = getDeviceList();
+  const dev  = devs.find(d => d.name === pcapName);
+  if (!dev) return pcapName;
+  // Match via shared IP address
+  for (const [nicName, entries] of Object.entries(nics || {})) {
+    for (const e of entries || []) {
+      if (e.family === 'IPv4' && (dev.addresses || []).some(a => a.addr === e.address)) {
+        return nicName;
+      }
+    }
+  }
+  // Fall back to pcap description (e.g. "Intel(R) Wi-Fi 6E...")
+  return dev.description || pcapName;
+}
+
 /** Resolve OS NIC name (e.g. "Wi-Fi", "eth0") to pcap device name. */
 function resolveDevice(ifaceName) {
   if (!Cap) return null;
@@ -183,9 +202,10 @@ function startCapture(ifaceNames, filter, onPacket, onError) {
             const no      = ++captureSeq;
             const ts      = Date.now() / 1000;
             const decoded = decodeFrame(frame);
-            const record  = { no, timestamp: ts, interface: dev, length: nbytes, frameHex: frame.toString('hex'), decoded };
+            const ifName  = resolveDeviceName(dev);
+            const record  = { no, timestamp: ts, interface: ifName, length: nbytes, frameHex: frame.toString('hex'), decoded };
             captureRows.push(record);
-            onPacket(dev, frame, record);
+            onPacket(ifName, frame, record);
             for (const cb of captureStreamCbs) { try { cb(record); } catch {} }
           } catch {}
         });

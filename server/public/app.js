@@ -353,7 +353,7 @@ function formatCaptureRow(r) {
   if      (udp.srcPort  !== undefined) protocol = 'UDP';
   else if (tcp.srcPort  !== undefined) protocol = 'TCP';
   else if (icmp.type    !== undefined) protocol = 'ICMP';
-  else if (arp.operation !== undefined) protocol = 'ARP';
+  else if (arp.op !== undefined || arp.operation !== undefined) protocol = 'ARP';
   else if (ip.src)                     protocol = 'IPv4';
 
   let source = ip.src  || eth.srcMac || '';
@@ -368,10 +368,12 @@ function formatCaptureRow(r) {
     info = `${tcp.srcPort} → ${tcp.dstPort}`;
   else if (icmp.type !== undefined)
     info = `Type=${icmp.type} Code=${icmp.code || 0}`;
-  else if (arp.operation !== undefined)
-    info = arp.operation === 1
+  else if (arp.op !== undefined || arp.operation !== undefined) {
+    const op = arp.op || arp.operation;
+    info = (op === 1 || op === 'request')
       ? `Who has ${arp.targetIp}? Tell ${arp.senderIp}`
       : `${arp.senderIp} is at ${arp.senderMac}`;
+  }
   else if (eth.etherType)
     info = `EtherType=0x${Number(eth.etherType).toString(16).toUpperCase().padStart(4,'0')}`;
 
