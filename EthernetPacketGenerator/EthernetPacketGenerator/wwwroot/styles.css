@@ -287,6 +287,12 @@ code {
   color: var(--muted); min-height: 300px; overflow-y: auto; white-space: pre-wrap;
 }
 
+/* ── Packet Library template items ───────────────────────────────── */
+#pktTplList > div:hover { border-color: var(--accent) !important; background: rgba(124,124,255,.07) !important; }
+
+/* ── Addr Map ─────────────────────────────────────────────────────── */
+#addrLocalList, #addrPeerList { padding: 10px; overflow-y: auto; flex: 1; }
+
 /* ── Status bar ───────────────────────────────────────────────────── */
 .statusbar {
   height: 22px; background: var(--surface-alt); border-top: 1px solid var(--border);

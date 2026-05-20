@@ -66,6 +66,9 @@ function initTabs() {
       if (tab.dataset.view === 'settingsView') {
         $('settingsWorkerRefresh')?.click();
       }
+      if (tab.dataset.view === 'addrMapView') {
+        refreshAddrLocal();
+      }
     });
   });
   // Light theme uses .modeTab class
@@ -151,6 +154,140 @@ async function sendFrame() {
     const out = data.stdout || data;
     toast(`Sent ${out.framesSent || 1} frame(s), ${out.bytesSent || '?'} bytes`, 'ok');
   } catch (err) { toast(`Send failed: ${err.message}`, 'bad'); }
+}
+
+// ── Packet Library (localStorage templates) ───────────────────────────────────
+const PKT_TPL_KEY = 'pktTemplates_v1';
+
+function pktTplLoad() {
+  try { return JSON.parse(localStorage.getItem(PKT_TPL_KEY) || '[]'); } catch { return []; }
+}
+function pktTplSave(list) {
+  localStorage.setItem(PKT_TPL_KEY, JSON.stringify(list));
+}
+
+function renderPktTemplates() {
+  const box = $('pktTplList');
+  if (!box) return;
+  const list = pktTplLoad();
+  if (!list.length) {
+    box.innerHTML = '<p style="color:var(--muted);font-size:10px;">No saved templates.</p>';
+    return;
+  }
+  box.innerHTML = '';
+  list.forEach((tpl, idx) => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:4px;border:1px solid var(--border);border-radius:3px;padding:4px 6px;background:var(--bg);';
+    const lbl = document.createElement('div');
+    lbl.style.cssText = 'flex:1;overflow:hidden;cursor:pointer;';
+    lbl.innerHTML = `<div style="font-size:11px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(tpl.name)}</div>
+      <div style="font-size:9px;color:var(--muted);">${esc(tpl.profile.protocol||'')} · ${esc(tpl.profile.dstMac||'')} · ×${tpl.profile.count||1}</div>`;
+    lbl.title = `Load: ${tpl.name}`;
+    lbl.addEventListener('click', () => loadPktTemplate(tpl));
+    const del = document.createElement('button');
+    del.className = 'small danger';
+    del.textContent = '✕';
+    del.title = 'Delete template';
+    del.style.cssText = 'padding:2px 5px;flex-shrink:0;';
+    del.addEventListener('click', () => {
+      const l = pktTplLoad();
+      l.splice(idx, 1);
+      pktTplSave(l);
+      renderPktTemplates();
+    });
+    row.appendChild(lbl);
+    row.appendChild(del);
+    box.appendChild(row);
+  });
+}
+
+function loadPktTemplate(tpl) {
+  const p = tpl.profile;
+  if ($('protocol') && p.protocol) $('protocol').value = p.protocol;
+  if ($('dstMac') && p.dstMac) $('dstMac').value = p.dstMac;
+  if ($('srcMac') && p.srcMac) $('srcMac').value = p.srcMac;
+  if ($('srcIp')  && p.srcIp)  $('srcIp').value  = p.srcIp;
+  if ($('dstIp')  && p.dstIp)  $('dstIp').value  = p.dstIp;
+  if ($('srcPort') && p.udp?.srcPort) $('srcPort').value = p.udp.srcPort;
+  if ($('dstPort') && p.udp?.dstPort) $('dstPort').value = p.udp.dstPort;
+  if ($('count')   && p.count)        $('count').value   = p.count;
+  if ($('intervalMs') && p.intervalMs !== undefined) $('intervalMs').value = p.intervalMs;
+  if ($('payload') && p.payload?.data) $('payload').value = p.payload.data;
+  if ($('vlanEnabled') && p.vlan) {
+    $('vlanEnabled').checked = !!p.vlan.enabled;
+    if ($('vlanId')) $('vlanId').value = p.vlan.id ?? 100;
+    if ($('vlanPriority')) $('vlanPriority').value = p.vlan.priority ?? 0;
+  }
+  previewFrame();
+  toast(`Loaded: ${tpl.name}`, 'ok');
+}
+
+// ── Addr Map ──────────────────────────────────────────────────────────────────
+function renderIfaceCard(iface, container) {
+  const ipList = (iface.ipv4 || []).map(a => `${a.local}/${a.prefixlen}`).join(', ') || '—';
+  const div = document.createElement('div');
+  div.style.cssText = 'border:1px solid var(--border);border-radius:4px;padding:8px 10px;margin-bottom:6px;background:var(--bg);';
+  div.innerHTML = `
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+      <span style="width:8px;height:8px;border-radius:50%;background:${iface.state==='up'?'var(--green)':'var(--border)'};flex-shrink:0;"></span>
+      <strong style="font-size:12px;">${esc(iface.name)}</strong>
+      <span style="font-size:9px;color:var(--muted);margin-left:auto;">${esc(iface.state||'')}</span>
+    </div>
+    <div style="font-size:10px;color:var(--muted);">MAC: <span style="color:var(--fg);font-family:monospace;">${esc(iface.mac||'—')}</span></div>
+    <div style="font-size:10px;color:var(--muted);">IP: <span style="color:var(--fg);">${esc(ipList)}</span></div>`;
+  container.appendChild(div);
+}
+
+async function refreshAddrLocal() {
+  const box = $('addrLocalList');
+  if (!box) return;
+  try {
+    const data = await api('/api/interfaces');
+    box.innerHTML = '';
+    (data.interfaces || []).forEach(iface => renderIfaceCard(iface, box));
+    if (!box.children.length) box.innerHTML = '<p style="color:var(--muted);">No interfaces found.</p>';
+  } catch (err) { box.innerHTML = `<p style="color:var(--red);">Error: ${esc(err.message)}</p>`; }
+}
+
+async function probeAddrPeer() {
+  const urlEl = $('addrPeerUrl');
+  const url   = urlEl?.value.trim().replace(/\/$/, '');
+  if (!url) { toast('Enter peer URL first', 'warn'); return; }
+  const box  = $('addrPeerList');
+  const stat = $('addrPeerStatus');
+  const sel  = $('addrFillIface');
+  if (stat) stat.textContent = 'Probing…';
+  try {
+    const data = await api(`${url}/api/interfaces`);
+    if (box) {
+      box.innerHTML = '';
+      (data.interfaces || []).forEach(iface => renderIfaceCard(iface, box));
+      if (!box.children.length) box.innerHTML = '<p style="color:var(--muted);">No interfaces found.</p>';
+    }
+    if (sel) {
+      sel.innerHTML = '<option value="">-- select interface --</option>' +
+        (data.interfaces || []).map(i => {
+          const ip = i.ipv4?.[0]?.local || '';
+          return `<option value="${esc(i.name)}" data-mac="${esc(i.mac||'')}" data-ip="${esc(ip)}">${esc(i.name)}  ${ip ? '('+ip+')' : ''}</option>`;
+        }).join('');
+    }
+    if (stat) stat.textContent = `${(data.interfaces||[]).length} interfaces`;
+  } catch (err) {
+    if (box) box.innerHTML = `<p style="color:var(--red);">Probe failed: ${esc(err.message)}</p>`;
+    if (stat) stat.textContent = 'failed';
+  }
+}
+
+function fillDstFromPeer() {
+  const sel = $('addrFillIface');
+  if (!sel?.value) { toast('Select a peer interface first', 'warn'); return; }
+  const opt = sel.options[sel.selectedIndex];
+  const mac = opt.dataset.mac;
+  const ip  = opt.dataset.ip;
+  if (mac && $('dstMac')) $('dstMac').value = mac;
+  if (ip  && $('dstIp'))  $('dstIp').value  = ip;
+  toast(`Filled dst: ${mac} / ${ip}`, 'ok');
+  previewFrame();
 }
 
 // ── Capture ───────────────────────────────────────────────────────────────────
@@ -526,54 +663,6 @@ async function clearSequence() {
   } catch(err) { toast(`Clear failed: ${err.message}`, 'bad'); }
 }
 
-// ── Light-theme seq builder helpers ──────────────────────────────────────────
-function updateSeqBuilderFields() {
-  const type = $('seqEventType')?.value || '';
-  const show = (...ids) => ids.forEach(id => $(id)?.classList.toggle('hidden', false));
-  const hide = (...ids) => ids.forEach(id => $(id)?.classList.add('hidden'));
-  hide('seqDelayField','seqAddrField','seqValueField','seqMaskField','seqExpectedField',
-       'seqTimeoutField','seqMacField','seqPortField','seqSerialTextField','seqSerialHexField',
-       'seqCaptureIfaceField','seqCaptureFilterField','seqCaptureExpectedField');
-  if (type === 'Delay')         show('seqDelayField');
-  if (type === 'RegWrite')      show('seqAddrField','seqValueField');
-  if (type === 'RegRead')       show('seqAddrField');
-  if (type === 'RegWaitFor')    show('seqAddrField','seqExpectedField','seqMaskField','seqTimeoutField');
-  if (type === 'FdbWrite')      show('seqMacField','seqPortField');
-  if (type === 'FdbRead')       show('seqMacField');
-  if (type === 'FdbWaitFor')    show('seqMacField','seqTimeoutField');
-  if (type === 'SerialSend')    show('seqSerialTextField','seqSerialHexField');
-  if (type === 'SerialVerify')  show('seqSerialTextField','seqTimeoutField');
-  if (type === 'CaptureVerify') show('seqCaptureIfaceField','seqCaptureFilterField','seqCaptureExpectedField');
-}
-
-function buildSeqEventFromForm(type) {
-  const ev = { eventType: EVENT_TYPES[type] || type.toLowerCase() };
-  if ($('seqDelayMs'))           ev.delayMs           = Number($('seqDelayMs').value) || 100;
-  if ($('seqAddress')?.value)    ev.offset             = $('seqAddress').value;
-  if ($('seqValue')?.value)      ev.value              = $('seqValue').value;
-  if ($('seqMask')?.value)       ev.mask               = $('seqMask').value;
-  if ($('seqExpected')?.value)   ev.expected           = $('seqExpected').value;
-  if ($('seqTimeout')?.value)    ev.timeoutMs          = Number($('seqTimeout').value) || 1000;
-  if ($('seqMac')?.value)        ev.mac                = $('seqMac').value;
-  if ($('seqPort')?.value !== undefined) ev.port       = Number($('seqPort')?.value) || 0;
-  if ($('seqSerialText')?.value) ev.text               = $('seqSerialText').value;
-  if ($('seqSerialHex')?.value)  ev.hex                = $('seqSerialHex').value;
-  if ($('seqCaptureIface')?.value) ev.captureInterface = $('seqCaptureIface').value;
-  if ($('seqCaptureFilter')?.value) ev.captureFilter   = $('seqCaptureFilter').value;
-  if ($('seqCaptureExpected')?.value) ev.captureExpected = Number($('seqCaptureExpected').value) || 1;
-  return ev;
-}
-
-function seqPresetEvent(preset) {
-  const map = {
-    delay100:  { eventType:'delay', delayMs:100 },
-    delay1s:   { eventType:'delay', delayMs:1000 },
-    flushFdb:  { eventType:'fdbFlush' },
-    readBmsr:  { eventType:'registerRead', offset:'0x001' },
-    waitLink:  { eventType:'registerExpect', offset:'0x001', expected:'0x00000004', mask:'0x00000004', timeoutMs:5000 },
-  };
-  return map[preset] || null;
-}
 
 function appendSeqTerm(text) {
   const el = $('seqTermOutput');
@@ -1887,6 +1976,31 @@ async function init() {
   ['protocol','dstMac','srcMac','srcIp','dstIp','srcPort','dstPort','payload','vlanEnabled','vlanId','vlanPriority']
     .forEach(id => $(id)?.addEventListener('change', previewFrame));
 
+  // Packet Library
+  $('pktTplSave')?.addEventListener('click', () => {
+    const name = $('pktTplName')?.value.trim();
+    if (!name) { toast('Enter a template name first', 'warn'); return; }
+    const list = pktTplLoad();
+    const existing = list.findIndex(t => t.name === name);
+    const entry = { name, profile: buildProfile(), savedAt: new Date().toISOString() };
+    if (existing >= 0) list[existing] = entry; else list.push(entry);
+    pktTplSave(list);
+    renderPktTemplates();
+    if ($('pktTplName')) $('pktTplName').value = '';
+    toast(`Saved: ${name}`, 'ok');
+  });
+  $('pktTplClearAll')?.addEventListener('click', () => {
+    if (!confirm('Clear all saved packet templates?')) return;
+    pktTplSave([]);
+    renderPktTemplates();
+  });
+  renderPktTemplates();
+
+  // Addr Map
+  $('addrRefreshLocal')?.addEventListener('click', refreshAddrLocal);
+  $('addrProbeBtn')?.addEventListener('click', probeAddrPeer);
+  $('addrFillBtn')?.addEventListener('click', fillDstFromPeer);
+
   // Capture
   $('captureRefresh')?.addEventListener('click', refreshCaptureStatus);
   $('captureStart')?.addEventListener('click', startCapture);
@@ -1917,43 +2031,10 @@ async function init() {
   $('seqRun')?.addEventListener('click', runSequence);
   $('seqClear')?.addEventListener('click', clearSequence);
   $('seqLoad')?.addEventListener('click', loadSequence);
-  // Light theme aliases
-  $('tcRunSequence')?.addEventListener('click', runSequence);
-  $('seqClearEvents')?.addEventListener('click', clearSequence);
-  $('seqRefreshFull')?.addEventListener('click', loadSequence);
-
-  // Event palette — each item opens modal (dark theme)
+  // Event palette — each item opens modal
   document.querySelectorAll('.palette-item[data-event]').forEach(el => {
     el.addEventListener('click', () => openEventModal(el.dataset.event));
   });
-
-  // Light theme: seqAddEvent button (reads from form)
-  $('seqAddEvent')?.addEventListener('click', async () => {
-    const type = $('seqEventType')?.value || 'Delay';
-    const event = buildSeqEventFromForm(type);
-    try {
-      await api('/api/sequence/event/add', { method:'POST', body: JSON.stringify(event) });
-      await loadSequence();
-      toast(`${type} added`, 'ok');
-    } catch(err) { toast(`Add failed: ${err.message}`, 'bad'); }
-  });
-
-  // Light theme: seqPreset quick buttons
-  document.querySelectorAll('.seqPreset[data-preset]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const ev = seqPresetEvent(btn.dataset.preset);
-      if (!ev) return;
-      try {
-        await api('/api/sequence/event/add', { method:'POST', body: JSON.stringify(ev) });
-        await loadSequence();
-        toast(`${btn.dataset.preset} added`, 'ok');
-      } catch(err) { toast(`Add failed: ${err.message}`, 'bad'); }
-    });
-  });
-
-  // Light theme: seqEventType change shows/hides fields
-  $('seqEventType')?.addEventListener('change', updateSeqBuilderFields);
-  updateSeqBuilderFields();
 
   // Modal buttons
   $('evModalOk')?.addEventListener('click', confirmEventModal);
@@ -2022,6 +2103,7 @@ async function init() {
       refreshRegStatus(),
       loadTestCases(),
       loadSequence(),
+      refreshAddrLocal(),
     ]);
     startCapturePolling();
     state.serialTimer = setInterval(refreshSerialStatus, 2000);

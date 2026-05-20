@@ -24,7 +24,6 @@
     <div class="server-status">
       <span id="serverState" class="state-dot"></span>
       <span id="status">Connecting...</span>
-      <a href="/index-light.html" style="color:var(--tab-dim);font-size:11px;text-decoration:none;margin-left:10px;padding:3px 8px;border:1px solid var(--border);border-radius:4px;" title="라이트 테마로 전환">☀️ Light</a>
     </div>
   </header>
 
@@ -32,6 +31,7 @@
   <nav class="tabbar" aria-label="Main views">
     <button class="tab active" data-view="packetGenView">  Packet Generator  </button>
     <button class="tab" data-view="scenarioView">  Scenario Lab  </button>
+    <button class="tab" data-view="addrMapView">  Addr Map  </button>
     <button class="tab" data-view="captureView">  Capture  </button>
     <button class="tab" data-view="hyperTermView">  HyperTerminal  </button>
     <button class="tab" data-view="settingsView">  Settings  </button>
@@ -132,6 +132,21 @@
           </div>
         </div>
       </div>
+
+      <!-- Packet Library (right panel) -->
+      <aside class="panel" style="width:200px;border-left:1px solid var(--border);border-right:none;">
+        <div class="panel-header">
+          <h2>Packet Library</h2>
+          <button id="pktTplClearAll" class="small danger" title="Clear all saved templates">✕</button>
+        </div>
+        <div class="panel-body" style="display:flex;flex-direction:column;gap:6px;">
+          <div style="display:flex;gap:4px;">
+            <input id="pktTplName" placeholder="Template name" style="flex:1;">
+            <button id="pktTplSave" class="small primary" title="Save current form as template">💾</button>
+          </div>
+          <div id="pktTplList" style="display:flex;flex-direction:column;gap:4px;overflow-y:auto;flex:1;"></div>
+        </div>
+      </aside>
     </section>
 
     <!-- ══ Scenario Lab ════════════════════════════════════════════ -->
@@ -244,6 +259,42 @@
           </div>
         </aside>
 
+      </div>
+    </section>
+
+    <!-- ══ Addr Map ═════════════════════════════════════════════════ -->
+    <section id="addrMapView" class="view">
+
+      <!-- Left: Local interfaces -->
+      <aside class="panel" style="width:260px;">
+        <div class="panel-header">
+          <h2>Local Interfaces</h2>
+          <button id="addrRefreshLocal" class="small">Refresh</button>
+        </div>
+        <div class="panel-body" id="addrLocalList" style="font-size:11px;">
+          <p style="color:var(--muted);">Loading...</p>
+        </div>
+      </aside>
+
+      <!-- Right: Peer interfaces -->
+      <div class="main-area">
+        <div class="panel-header" style="border-left:1px solid var(--border);gap:8px;">
+          <h2>Peer Node Interfaces</h2>
+          <input id="addrPeerUrl" placeholder="http://172.x.x.x:8080" style="width:220px;">
+          <button id="addrProbeBtn" class="small primary">Probe</button>
+          <span id="addrPeerStatus" style="font-size:10px;color:var(--muted);"></span>
+        </div>
+        <div class="panel-body" id="addrPeerList" style="font-size:11px;overflow-y:auto;flex:1;">
+          <p style="color:var(--muted);">Enter peer URL and press Probe.</p>
+        </div>
+        <!-- Quick-fill bar -->
+        <div style="border-top:1px solid var(--border);padding:8px 12px;display:flex;align-items:center;gap:8px;flex-shrink:0;">
+          <span style="font-size:10px;color:var(--muted);">Quick-fill Packet Generator from peer interface:</span>
+          <select id="addrFillIface" style="width:180px;">
+            <option value="">-- probe peer first --</option>
+          </select>
+          <button id="addrFillBtn" class="small">→ Fill Dst MAC/IP</button>
+        </div>
       </div>
     </section>
 
@@ -876,10 +927,7 @@
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
           <div class="reg-card" style="padding:12px;">
             <div class="reg-card-title">Theme</div>
-            <div style="display:flex;gap:8px;margin-top:6px;">
-              <a href="/" style="flex:1;text-align:center;" class="small primary" id="themeLink">Dark</a>
-              <a href="/index-light.html" style="flex:1;text-align:center;" class="small">Light</a>
-            </div>
+            <div style="margin-top:6px;font-size:11px;color:var(--muted);">Dark (현재)</div>
           </div>
           <div class="reg-card" style="padding:12px;">
             <div class="reg-card-title">Worker Status</div>
