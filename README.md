@@ -8,6 +8,17 @@
 
 ---
 
+### 웹 UI 주요 기능 (Save / Load)
+
+| 탭 | 저장 | 불러오기 |
+|----|------|----------|
+| Packet Generator → Library | 💾 이름으로 저장 (localStorage) · ↓ JSON 내보내기 | ↑ Import JSON |
+| Scenario Lab → Sequence | ↓ Seq (JSON) | ↑ Seq (JSON, 현재 시퀀스 교체) |
+| Scenario Lab → Test Cases | ↓ TCs (JSON) | ↑ TCs (JSON, 동일 그룹명 덮어쓰기) |
+| Capture | ↓ CSV · ↓ JSON | — (라이브 캡처) |
+
+---
+
 ## 개요 (Overview)
 
 PacketLabManager는 이더넷 네트워크 테스트를 위한 풀스택 랩 도구입니다.  

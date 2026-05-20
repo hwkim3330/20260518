@@ -144,6 +144,12 @@
             <input id="pktTplName" placeholder="Template name" style="flex:1;">
             <button id="pktTplSave" class="small primary" title="Save current form as template">💾</button>
           </div>
+          <div style="display:flex;gap:4px;">
+            <button id="pktTplExport" class="small" style="flex:1;" title="Export all templates to JSON">↓ JSON</button>
+            <label class="small" style="flex:1;text-align:center;cursor:pointer;padding:3px 6px;background:var(--bg-2,#1e1e2e);border:1px solid var(--border);border-radius:3px;font-size:11px;" title="Import templates from JSON file">↑ Import
+              <input type="file" id="pktTplImport" accept=".json" style="display:none;">
+            </label>
+          </div>
           <div id="pktTplList" style="display:flex;flex-direction:column;gap:4px;overflow-y:auto;flex:1;"></div>
         </div>
       </aside>
@@ -180,6 +186,10 @@
               <button id="seqRun" class="small primary" style="background:var(--green,#44cc77);border-color:var(--green,#44cc77);">▶ Run</button>
               <button id="seqClear" class="small danger">✕ Clear</button>
               <button id="seqLoad" class="small">↻ Load</button>
+              <button id="seqExport" class="small" title="Export sequence to JSON file">↓ Seq</button>
+              <label class="small" style="cursor:pointer;padding:3px 8px;background:var(--bg-2,#1e1e2e);border:1px solid var(--border);border-radius:3px;white-space:nowrap;" title="Import sequence from JSON file">↑ Seq<input type="file" id="seqImport" accept=".json" style="display:none;"></label>
+              <button id="tcExport" class="small" title="Export all test cases to JSON file">↓ TCs</button>
+              <label class="small" style="cursor:pointer;padding:3px 8px;background:var(--bg-2,#1e1e2e);border:1px solid var(--border);border-radius:3px;white-space:nowrap;" title="Import test cases from JSON file">↑ TCs<input type="file" id="tcImport" accept=".json" style="display:none;"></label>
             </div>
           </div>
 
@@ -311,7 +321,10 @@
           <button id="captureStart" class="primary" style="width:100%;margin-bottom:5px;">▶ Start</button>
           <button id="captureStop" class="danger" style="width:100%;margin-bottom:5px;">■ Stop</button>
           <button id="captureClear" style="width:100%;margin-bottom:5px;">Clear</button>
-          <button id="captureSaveCsv" style="width:100%;margin-bottom:10px;">↓ CSV</button>
+          <div style="display:flex;gap:4px;margin-bottom:10px;">
+            <button id="captureSaveCsv" style="flex:1;">↓ CSV</button>
+            <button id="captureSaveJson" style="flex:1;">↓ JSON</button>
+          </div>
           <div style="font-size:10px;color:var(--muted);margin-bottom:6px;">
             <span id="captureRunning">idle</span> &nbsp; <strong id="captureTotal">0 pkts</strong>
           </div>

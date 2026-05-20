@@ -12,6 +12,33 @@ const state = {
   selectedTcIdx: null,
 };
 
+// ── Utility: file download / upload helpers ───────────────────────────────────
+function dateStr() {
+  return new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+}
+
+function dlFile(content, filename, type) {
+  const blob = new Blob([content], { type });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function dlJson(obj, filename) {
+  dlFile(JSON.stringify(obj, null, 2), filename, 'application/json');
+}
+
+function readJsonFile(file, cb) {
+  const fr = new FileReader();
+  fr.onload = e => {
+    try { cb(JSON.parse(e.target.result)); }
+    catch { toast('Invalid JSON file', 'bad'); }
+  };
+  fr.readAsText(file);
+}
+
 // ── API helper ────────────────────────────────────────────────────────────────
 async function api(path, options = {}) {
   const res = await fetch(path, {
@@ -198,6 +225,29 @@ function renderPktTemplates() {
     row.appendChild(lbl);
     row.appendChild(del);
     box.appendChild(row);
+  });
+}
+
+function pktTplExportJson() {
+  const list = pktTplLoad();
+  if (!list.length) { toast('No templates to export', 'warn'); return; }
+  dlJson(list, `pkt_templates_${dateStr()}.json`);
+  toast(`Exported ${list.length} template(s)`, 'ok');
+}
+
+function pktTplImportJson(file) {
+  readJsonFile(file, data => {
+    if (!Array.isArray(data)) { toast('Expected JSON array of templates', 'bad'); return; }
+    const valid = data.filter(t => t && t.name && t.profile);
+    if (!valid.length) { toast('No valid templates in file', 'warn'); return; }
+    const cur = pktTplLoad();
+    valid.forEach(t => {
+      const i = cur.findIndex(x => x.name === t.name);
+      if (i >= 0) cur[i] = t; else cur.push(t);
+    });
+    pktTplSave(cur);
+    renderPktTemplates();
+    toast(`Imported ${valid.length} template(s)`, 'ok');
   });
 }
 
@@ -1924,12 +1974,62 @@ function downloadCaptureCsv() {
     [r.no, r.time, r.interfaceName, r.srcMac, r.dstMac, r.source, r.destination, r.protocol, r.length, r.info]
       .map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')
   ).join('\n');
-  const blob = new Blob([hdr + rows], { type: 'text/csv' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `capture_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.csv`;
-  a.click();
-  URL.revokeObjectURL(a.href);
+  dlFile(hdr + rows, `capture_${dateStr()}.csv`, 'text/csv');
+  toast(`Exported ${state.captureRows.length} packets (CSV)`, 'ok');
+}
+
+function downloadCaptureJson() {
+  if (!state.captureRows.length) { toast('No packets to export', 'bad'); return; }
+  dlJson(state.captureRows, `capture_${dateStr()}.json`);
+  toast(`Exported ${state.captureRows.length} packets (JSON)`, 'ok');
+}
+
+// ── Scenario Lab: sequence export / import ────────────────────────────────────
+async function seqExportJson() {
+  try {
+    const data = await api('/api/sequence/full');
+    const items = data.items || [];
+    if (!items.length) { toast('Sequence is empty', 'warn'); return; }
+    dlJson(items, `sequence_${dateStr()}.json`);
+    toast(`Exported ${items.length} event(s)`, 'ok');
+  } catch (err) { toast(`Export failed: ${err.message}`, 'bad'); }
+}
+
+async function seqImportJson(file) {
+  readJsonFile(file, async data => {
+    const events = Array.isArray(data) ? data : (data.items || []);
+    if (!events.length) { toast('No events found in file', 'warn'); return; }
+    if (!confirm(`Import ${events.length} event(s)? Current sequence will be replaced.`)) return;
+    try {
+      await api('/api/sequence/import', { method: 'POST', body: JSON.stringify(events) });
+      await loadSequence();
+      toast(`Imported ${events.length} event(s)`, 'ok');
+    } catch (err) { toast(`Import failed: ${err.message}`, 'bad'); }
+  });
+}
+
+// ── Scenario Lab: test cases export / import ──────────────────────────────────
+async function tcExportJson() {
+  try {
+    const data = await api('/api/testcases/status');
+    const snapshot = data.snapshot || [];
+    if (!snapshot.length) { toast('No test cases to export', 'warn'); return; }
+    dlJson(snapshot, `testcases_${dateStr()}.json`);
+    toast(`Exported ${snapshot.length} group(s)`, 'ok');
+  } catch (err) { toast(`Export failed: ${err.message}`, 'bad'); }
+}
+
+async function tcImportJson(file) {
+  readJsonFile(file, async data => {
+    const groups = Array.isArray(data) ? data : (data.groups || data.snapshot || []);
+    if (!groups.length) { toast('No groups found in file', 'warn'); return; }
+    if (!confirm(`Import ${groups.length} group(s)? Same-name groups will be overwritten.`)) return;
+    try {
+      await api('/api/testcases/import', { method: 'POST', body: JSON.stringify(groups) });
+      await loadTestCases();
+      toast(`Imported ${groups.length} group(s)`, 'ok');
+    } catch (err) { toast(`Import failed: ${err.message}`, 'bad'); }
+  });
 }
 
 function updateStatusBar() {
@@ -1994,6 +2094,10 @@ async function init() {
     pktTplSave([]);
     renderPktTemplates();
   });
+  $('pktTplExport')?.addEventListener('click', pktTplExportJson);
+  $('pktTplImport')?.addEventListener('change', e => {
+    const f = e.target.files?.[0]; if (f) { pktTplImportJson(f); e.target.value = ''; }
+  });
   renderPktTemplates();
 
   // Addr Map
@@ -2027,10 +2131,18 @@ async function init() {
   $('seqTermInput')?.addEventListener('keydown', e => { if (e.key === 'Enter') seqTermSend(); });
   $('clearSeqTerminal')?.addEventListener('click', () => { if ($('seqTermOutput')) $('seqTermOutput').textContent = ''; });
 
-  // Sequence run/clear/load buttons (dark theme)
+  // Sequence run/clear/load/export/import
   $('seqRun')?.addEventListener('click', runSequence);
   $('seqClear')?.addEventListener('click', clearSequence);
   $('seqLoad')?.addEventListener('click', loadSequence);
+  $('seqExport')?.addEventListener('click', seqExportJson);
+  $('seqImport')?.addEventListener('change', e => {
+    const f = e.target.files?.[0]; if (f) { seqImportJson(f); e.target.value = ''; }
+  });
+  $('tcExport')?.addEventListener('click', tcExportJson);
+  $('tcImport')?.addEventListener('change', e => {
+    const f = e.target.files?.[0]; if (f) { tcImportJson(f); e.target.value = ''; }
+  });
   // Event palette — each item opens modal
   document.querySelectorAll('.palette-item[data-event]').forEach(el => {
     el.addEventListener('click', () => openEventModal(el.dataset.event));
@@ -2062,8 +2174,9 @@ async function init() {
     if ($('serialOutput')) $('serialOutput').textContent = '';
   });
 
-  // Capture extra
+  // Capture export
   $('captureSaveCsv')?.addEventListener('click', downloadCaptureCsv);
+  $('captureSaveJson')?.addEventListener('click', downloadCaptureJson);
 
   // Settings
   $('refreshLogs')?.addEventListener('click', loadLogs);

@@ -189,6 +189,32 @@ router.post('/sequence/events/clear', async (req, res) => {
   } catch (e) { wErr(res, e); }
 });
 
+// ── Sequence bulk import ──────────────────────────────────────────────────────
+router.post('/sequence/import', async (req, res) => {
+  try {
+    const incoming = req.body?.items || req.body;
+    if (!Array.isArray(incoming)) return res.status(400).json({ ok: false, error: 'items array expected' });
+    seqSave(req, incoming);
+    res.json({ ok: true, count: incoming.length });
+  } catch (e) { wErr(res, e); }
+});
+
+// ── Test-case bulk import ─────────────────────────────────────────────────────
+router.post('/testcases/import', async (req, res) => {
+  try {
+    const incoming = req.body?.groups || req.body;
+    if (!Array.isArray(incoming)) return res.status(400).json({ ok: false, error: 'groups array expected' });
+    const cur = tcLoad(req);
+    incoming.forEach(g => {
+      if (!g || !g.name) return;
+      const i = cur.findIndex(x => x.name === g.name);
+      if (i >= 0) cur[i] = { ...cur[i], ...g }; else cur.push(g);
+    });
+    fs.writeFileSync(tcFile(req), JSON.stringify(cur, null, 2));
+    res.json({ ok: true, count: incoming.length });
+  } catch (e) { wErr(res, e); }
+});
+
 // ── Ports link status — uses MDIO via register (works native too) ─────────────
 router.get('/ports/link-status', async (req, res) => {
   try {
