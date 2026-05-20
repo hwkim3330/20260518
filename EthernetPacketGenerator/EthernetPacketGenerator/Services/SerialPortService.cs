@@ -126,6 +126,25 @@ public class SerialPortService : IDisposable
         _port.Write(data, 0, data.Length);
     }
 
+    public void SetSignals(bool? rts = null, bool? dtr = null)
+    {
+        if (_port == null || !_port.IsOpen)
+            throw new InvalidOperationException("포트가 열려있지 않습니다.");
+
+        if (rts.HasValue) _port.RtsEnable = rts.Value;
+        if (dtr.HasValue) _port.DtrEnable = dtr.Value;
+    }
+
+    public void SendBreak(int durationMs = 300)
+    {
+        if (_port == null || !_port.IsOpen)
+            throw new InvalidOperationException("포트가 열려있지 않습니다.");
+
+        _port.BreakState = true;
+        Thread.Sleep(Math.Max(1, durationMs));
+        _port.BreakState = false;
+    }
+
     /// <summary>커맨드 전송 후 OK/ERR 응답 대기 (레지스터 R/W 전용)</summary>
     public async Task<string> SendCommandAsync(string command, int timeoutMs = 2000)
     {

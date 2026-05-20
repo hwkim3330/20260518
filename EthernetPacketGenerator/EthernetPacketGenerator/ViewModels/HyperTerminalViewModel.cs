@@ -213,6 +213,26 @@ public class HyperTerminalViewModel : ViewModelBase
         _serial.SendLine(text);
     }
 
+    public void SendBytesForApi(byte[] data)
+    {
+        if (data.Length == 0) return;
+        AppendTerminal($"> hex {Convert.ToHexString(data).ToLowerInvariant()}");
+        _serial.SendBytes(data);
+    }
+
+    public void ControlForApi(string cmd, bool? rts = null, bool? dtr = null)
+    {
+        if (cmd.Equals("break", StringComparison.OrdinalIgnoreCase))
+        {
+            _serial.SendBreak();
+            AppendTerminal("[break]");
+            return;
+        }
+
+        _serial.SetSignals(rts, dtr);
+        AppendTerminal($"[signals rts={rts?.ToString() ?? "-"} dtr={dtr?.ToString() ?? "-"}]");
+    }
+
     public void ClearForApi() => TerminalOutput = string.Empty;
 
     public object GetSnapshot()

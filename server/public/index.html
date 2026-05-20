@@ -37,64 +37,6 @@
     <button class="tab" data-view="settingsView">  Settings  </button>
   </nav>
 
-  <!-- ViewModel-aligned control deck -->
-  <section class="vm-deck" aria-label="Control overview">
-    <div class="vm-card vm-card-wide">
-      <div class="vm-card-head">
-        <span>Control ViewModel</span>
-        <button id="vmRefresh" class="small">Refresh</button>
-      </div>
-      <div class="vm-grid">
-        <div>
-          <strong id="vmServerMode">node-native</strong>
-          <small>backend mode</small>
-        </div>
-        <div>
-          <strong id="vmLocalIp">localhost</strong>
-          <small>local control</small>
-        </div>
-        <div>
-          <strong id="vmPeerState">peer unknown</strong>
-          <small>172.31.51.213</small>
-        </div>
-        <div>
-          <strong id="vmCaptureState">0 packets</strong>
-          <small>capture buffer</small>
-        </div>
-      </div>
-    </div>
-
-    <div class="vm-card">
-      <div class="vm-card-head"><span>Port Map</span><span id="vmPairState" class="pill">ready</span></div>
-      <div id="vmPortMap" class="port-map">
-        <div class="port-line"><span>enp1s0f1</span><i></i><span>이더넷 2</span></div>
-        <div class="port-line"><span>enp1s0f3</span><i></i><span>이더넷</span></div>
-      </div>
-    </div>
-
-    <div class="vm-card vm-test-card">
-      <div class="vm-card-head">
-        <span>One-click Local → Peer Tests</span>
-        <span id="vmTestState" class="pill">idle</span>
-      </div>
-      <div class="test-actions">
-        <input id="vmPeerUrl" value="http://172.31.51.213:8080" title="Peer server URL">
-        <button id="vmRunSuite" class="primary">Run All</button>
-      </div>
-      <div id="vmTestProgress" class="test-progress">
-        <div class="test-step waiting">wire</div>
-        <div class="test-step waiting">e2e</div>
-        <div class="test-step waiting">bench</div>
-        <div class="test-step waiting">sweep</div>
-        <div class="test-step waiting">rfc2544</div>
-      </div>
-      <div class="report-links">
-        <a href="/reports/switch-deep-latest.html" target="_blank">Latest Report</a>
-        <a href="/reports/index.html" target="_blank">Archive</a>
-      </div>
-    </div>
-  </section>
-
   <div class="content">
 
     <!-- ══ Packet Generator ════════════════════════════════════════ -->

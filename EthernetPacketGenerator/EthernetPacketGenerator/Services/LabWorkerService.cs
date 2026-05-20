@@ -747,6 +747,16 @@ public class LabWorkerService : IDisposable
 
     private JsonObject SerialList()
     {
+        if (HyperTerminalVm != null)
+        {
+            return DispatchToUiAsync(() =>
+            {
+                HyperTerminalVm.RefreshPortsForApi();
+                var snapshot = HyperTerminalVm.GetSnapshot();
+                return new JsonObject { ["terminal"] = JsonNode.Parse(JsonSerializer.Serialize(snapshot, _jsonOpts)) };
+            }).GetAwaiter().GetResult();
+        }
+
         var ports = SerialPort.GetPortNames().OrderBy(p => p).ToArray();
         var ttys  = new JsonArray();
         var ptys  = new JsonArray();
@@ -760,6 +770,15 @@ public class LabWorkerService : IDisposable
 
     private JsonObject SerialStatus()
     {
+        if (HyperTerminalVm != null)
+        {
+            return DispatchToUiAsync(() =>
+            {
+                var snapshot = HyperTerminalVm.GetSnapshot();
+                return new JsonObject { ["terminal"] = JsonNode.Parse(JsonSerializer.Serialize(snapshot, _jsonOpts)) };
+            }).GetAwaiter().GetResult();
+        }
+
         var ports = SerialPort.GetPortNames().OrderBy(p => p).ToArray();
 
         JsonArray MakeArr() {
@@ -796,6 +815,22 @@ public class LabWorkerService : IDisposable
         var parity   = payload["parity"]?.GetValue<string>()   ?? "None";
         var stopBits = payload["stopBits"]?.GetValue<string>()  ?? "One";
 
+        if (HyperTerminalVm != null)
+        {
+            return DispatchToUiAsync(() =>
+            {
+                HyperTerminalVm.ConnectForApi(port, baudRate);
+                var snapshot = HyperTerminalVm.GetSnapshot();
+                return new JsonObject
+                {
+                    ["open"] = true,
+                    ["port"] = port,
+                    ["baudRate"] = baudRate,
+                    ["terminal"] = JsonNode.Parse(JsonSerializer.Serialize(snapshot, _jsonOpts))
+                };
+            }).GetAwaiter().GetResult();
+        }
+
         CloseSerial();
 
         _serial = new SerialPort
@@ -817,6 +852,20 @@ public class LabWorkerService : IDisposable
 
     private JsonObject SerialClose()
     {
+        if (HyperTerminalVm != null)
+        {
+            return DispatchToUiAsync(() =>
+            {
+                HyperTerminalVm.DisconnectForApi();
+                var snapshot = HyperTerminalVm.GetSnapshot();
+                return new JsonObject
+                {
+                    ["open"] = false,
+                    ["terminal"] = JsonNode.Parse(JsonSerializer.Serialize(snapshot, _jsonOpts))
+                };
+            }).GetAwaiter().GetResult();
+        }
+
         CloseSerial();
         return new JsonObject { ["open"] = false };
     }
@@ -867,6 +916,30 @@ public class LabWorkerService : IDisposable
 
     private async Task<JsonObject> SerialWriteAsync(JsonObject payload)
     {
+        if (HyperTerminalVm != null)
+        {
+            return await DispatchToUiAsync(() =>
+            {
+                var hex  = payload["hex"]?.GetValue<string>();
+                var text = payload["text"]?.GetValue<string>();
+
+                if (hex != null)
+                {
+                    var bytes = Convert.FromHexString(hex.Replace(" ", "").Replace(":", ""));
+                    HyperTerminalVm.SendBytesForApi(bytes);
+                    return new JsonObject { ["written"] = bytes.Length, ["mode"] = "hex" };
+                }
+
+                if (text != null)
+                {
+                    HyperTerminalVm.SendForApi(text);
+                    return new JsonObject { ["written"] = text.Length, ["mode"] = "text" };
+                }
+
+                throw new ArgumentException("Either hex or text payload is required");
+            });
+        }
+
         if (_serial == null || !_serial.IsOpen)
             throw new InvalidOperationException("Serial port not open");
 
@@ -892,6 +965,15 @@ public class LabWorkerService : IDisposable
 
     private JsonObject SerialRead()
     {
+        if (HyperTerminalVm != null)
+        {
+            return DispatchToUiAsync(() =>
+            {
+                var snapshot = HyperTerminalVm.GetSnapshot();
+                return new JsonObject { ["terminal"] = JsonNode.Parse(JsonSerializer.Serialize(snapshot, _jsonOpts)) };
+            }).GetAwaiter().GetResult();
+        }
+
         var bytes = _serialRxBuffer.ToArray();
         while (_serialRxBuffer.TryDequeue(out _)) { }
         var hex = Convert.ToHexString(bytes).ToLowerInvariant();
@@ -900,12 +982,43 @@ public class LabWorkerService : IDisposable
 
     private JsonObject SerialClear()
     {
+        if (HyperTerminalVm != null)
+        {
+            return DispatchToUiAsync(() =>
+            {
+                HyperTerminalVm.ClearForApi();
+                var snapshot = HyperTerminalVm.GetSnapshot();
+                return new JsonObject
+                {
+                    ["cleared"] = true,
+                    ["terminal"] = JsonNode.Parse(JsonSerializer.Serialize(snapshot, _jsonOpts))
+                };
+            }).GetAwaiter().GetResult();
+        }
+
         while (_serialRxBuffer.TryDequeue(out _)) { }
         return new JsonObject { ["cleared"] = true };
     }
 
     private JsonObject SerialControl(JsonObject payload)
     {
+        if (HyperTerminalVm != null)
+        {
+            return DispatchToUiAsync(() =>
+            {
+                var cmd = payload["cmd"]?.GetValue<string>() ?? "";
+                bool? rts = payload.ContainsKey("rts") ? payload["rts"]!.GetValue<bool>() : null;
+                bool? dtr = payload.ContainsKey("dtr") ? payload["dtr"]!.GetValue<bool>() : null;
+                HyperTerminalVm.ControlForApi(cmd, rts, dtr);
+                var snapshot = HyperTerminalVm.GetSnapshot();
+                return new JsonObject
+                {
+                    ["ok"] = true,
+                    ["terminal"] = JsonNode.Parse(JsonSerializer.Serialize(snapshot, _jsonOpts))
+                };
+            }).GetAwaiter().GetResult();
+        }
+
         if (_serial == null || !_serial.IsOpen)
             throw new InvalidOperationException("Serial port not open");
 

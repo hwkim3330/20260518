@@ -2,8 +2,6 @@ const $ = (id) => document.getElementById(id);
 
 const state = {
   interfaces: [],
-  peerInterfaces: [],
-  peerUrl: 'http://172.31.51.213:8080',
   senderIface: '',
   captureInterfaces: new Set(),
   captureRows: [],
@@ -13,11 +11,6 @@ const state = {
   selectedGroupIdx: 0,
   selectedTcIdx: null,
 };
-
-const DEFAULT_SWITCH_PAIRS = [
-  { local: 'enp1s0f1', peer: '이더넷 2' },
-  { local: 'enp1s0f3', peer: '이더넷' },
-];
 
 // ── API helper ────────────────────────────────────────────────────────────────
 async function api(path, options = {}) {
@@ -44,16 +37,6 @@ function setStatus(text, ok = true) {
   $('serverState').classList.toggle('bad', !ok);
   $('workerStatus').textContent = ok ? `Worker: connected` : `Worker: offline`;
   $('workerStatus').className = ok ? 'ok' : 'err';
-}
-
-async function apiAbs(base, path, options = {}) {
-  const res = await fetch(`${base.replace(/\/$/, '')}${path}`, {
-    ...options,
-    headers: { 'content-type': 'application/json', ...(options.headers || {}) },
-  });
-  const data = await res.json();
-  if (!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
-  return data;
 }
 
 function esc(v) {
@@ -1824,181 +1807,12 @@ function downloadCaptureCsv() {
   URL.revokeObjectURL(a.href);
 }
 
-// ── Control deck / ViewModel summary ─────────────────────────────────────────
-function setText(id, text) {
-  const el = $(id);
-  if (el) el.textContent = text;
-}
-
-function setPill(id, text, kind = '') {
-  const el = $(id);
-  if (!el) return;
-  el.textContent = text;
-  el.className = `pill${kind ? ` ${kind}` : ''}`;
-}
-
-function setTestStep(name, kind) {
-  const step = [...document.querySelectorAll('#vmTestProgress .test-step')]
-    .find(el => el.textContent.trim().toLowerCase() === name.toLowerCase());
-  if (step) step.className = `test-step ${kind}`;
-}
-
-function resetTestSteps() {
-  document.querySelectorAll('#vmTestProgress .test-step').forEach(el => { el.className = 'test-step waiting'; });
-}
-
-function findInterfaceByName(list, name) {
-  const target = name.toLowerCase();
-  return (list || []).find(i => String(i.name || '').toLowerCase() === target);
-}
-
-function switchPairs() {
-  const localNames = new Set(state.interfaces.map(i => i.name));
-  const peerNames = new Set(state.peerInterfaces.map(i => i.name));
-  const exact = DEFAULT_SWITCH_PAIRS.filter(p =>
-    localNames.has(p.local) && (!peerNames.size || peerNames.has(p.peer))
-  );
-  if (exact.length) return exact;
-
-  const local = state.interfaces.filter(i => /^enp1s0f[13]$/.test(i.name) || i.state === 'up').slice(0, 2);
-  const peer = state.peerInterfaces.slice(0, 2);
-  return local.map((l, i) => ({ local: l.name, peer: peer[i]?.name || DEFAULT_SWITCH_PAIRS[i]?.peer || '' })).filter(p => p.local && p.peer);
-}
-
-function renderPortMap() {
-  const wrap = $('vmPortMap');
-  if (!wrap) return;
-  const pairs = switchPairs();
-  if (!pairs.length) {
-    wrap.innerHTML = '<div class="empty" style="padding:8px;">No port pair detected.</div>';
-    setPill('vmPairState', 'needs map', 'bad');
-    return;
-  }
-  wrap.innerHTML = pairs.map(p => {
-    const l = findInterfaceByName(state.interfaces, p.local);
-    const r = findInterfaceByName(state.peerInterfaces, p.peer);
-    const lMeta = [l?.mac, l?.ipv4?.[0]?.local].filter(Boolean).join(' / ');
-    const rMeta = [r?.mac, r?.ipv4?.[0]?.local].filter(Boolean).join(' / ');
-    return `<div class="port-line" title="${esc(lMeta)} ↔ ${esc(rMeta)}">
-      <span>${esc(p.local)}</span><i></i><span>${esc(p.peer)}</span>
-    </div>`;
-  }).join('');
-  setPill('vmPairState', `${pairs.length} links`, 'ok');
-}
-
-async function refreshControlDeck() {
-  const peerInput = $('vmPeerUrl');
-  if (peerInput?.value.trim()) state.peerUrl = peerInput.value.trim();
-
-  try {
-    const [backend, addrs] = await Promise.all([
-      api('/api/backend/status').catch(() => null),
-      api('/api/local-addresses').catch(() => null),
-    ]);
-    if (backend) setText('vmServerMode', backend.mode || 'node-native');
-    if (addrs) setText('vmLocalIp', addrs.primary || location.hostname);
-  } catch { /* non-blocking summary */ }
-
-  try {
-    const peer = await apiAbs(state.peerUrl, '/api/interfaces');
-    state.peerInterfaces = peer.interfaces || [];
-    setText('vmPeerState', `${state.peerInterfaces.length} ifaces`);
-  } catch (err) {
-    state.peerInterfaces = [];
-    setText('vmPeerState', `offline`);
-  }
-
-  setText('vmCaptureState', `${state.captureRows.length} packets`);
-  renderPortMap();
-}
-
-async function runSuiteStep(name, fn) {
-  setTestStep(name, 'running');
-  try {
-    const ok = await fn();
-    setTestStep(name, ok ? 'ok' : 'bad');
-    return ok;
-  } catch (err) {
-    setTestStep(name, 'bad');
-    toast(`${name} failed: ${err.message}`, 'bad');
-    return false;
-  }
-}
-
-async function runControlSuite() {
-  if ($('vmPeerUrl')?.value.trim()) state.peerUrl = $('vmPeerUrl').value.trim();
-  resetTestSteps();
-  setPill('vmTestState', 'running');
-  await refreshControlDeck();
-
-  const pairs = switchPairs();
-  if (!pairs.length) {
-    setPill('vmTestState', 'no pair', 'bad');
-    toast('No switch port pair available', 'bad');
-    return;
-  }
-
-  const localUrl = location.origin;
-  const peerUrl = state.peerUrl;
-  const first = pairs[0];
-
-  const wireOk = await runSuiteStep('wire', async () => {
-    let allOk = true;
-    for (const p of pairs) {
-      const a = await api('/api/wire-validation', {
-        method: 'POST',
-        body: JSON.stringify({ senderUrl: localUrl, receiverUrl: peerUrl, senderInterface: p.local, receiverInterface: p.peer, count: 2, intervalMs: 100 })
-      });
-      allOk = allOk && Boolean(a.report?.ok);
-    }
-    return allOk;
-  });
-
-  const e2eOk = await runSuiteStep('e2e', async () => {
-    const data = await api('/api/e2e-test', {
-      method: 'POST',
-      body: JSON.stringify({ senderUrl: localUrl, receiverUrl: peerUrl, senderInterface: first.local, receiverInterface: first.peer, profile: { count: 10, intervalMs: 50 }, timeoutSec: 3 })
-    });
-    return Boolean(data.report?.ok);
-  });
-
-  const benchOk = await runSuiteStep('bench', async () => {
-    const data = await api('/api/benchmark', {
-      method: 'POST',
-      body: JSON.stringify({ senderUrl: localUrl, receiverUrl: peerUrl, senderInterface: first.local, receiverInterface: first.peer, count: 200, intervalMs: 1, payloadSize: 512 })
-    });
-    return Boolean(data.report?.ok);
-  });
-
-  const sweepOk = await runSuiteStep('sweep', async () => {
-    const data = await api('/api/sweep', {
-      method: 'POST',
-      body: JSON.stringify({ senderUrl: localUrl, receiverUrl: peerUrl, senderInterface: first.local, receiverInterface: first.peer, count: 80, intervalMs: 2 })
-    });
-    return Array.isArray(data.report?.results) && data.report.results.some(r => (r.stats?.rxCount || 0) > 0);
-  });
-
-  const rfcOk = await runSuiteStep('rfc2544', async () => {
-    const data = await api('/api/rfc2544', {
-      method: 'POST',
-      body: JSON.stringify({ senderUrl: localUrl, receiverUrl: peerUrl, senderInterface: first.local, receiverInterface: first.peer, trialDurationSec: 0.2, linkRateMbps: 10, tolerancePps: 1000 })
-    });
-    return Array.isArray(data.report?.results) && data.report.results.length > 0;
-  });
-
-  const ok = wireOk && e2eOk && benchOk && sweepOk && rfcOk;
-  setPill('vmTestState', ok ? 'pass' : 'check failures', ok ? 'ok' : 'bad');
-  toast(ok ? 'Switch test suite passed' : 'Switch test suite completed with failures', ok ? 'ok' : 'warn');
-  await refreshControlDeck();
-}
-
 function updateStatusBar() {
   const pkts = state.captureRows.length;
   const serial = state.serialConnected ? '● Serial' : '○ Serial';
   const cap = state.captureTimer ? `● Cap ${pkts}pkts` : `○ Cap ${pkts}pkts`;
   const sb = $('statusExtra');
   if (sb) sb.textContent = `${serial}   ${cap}`;
-  setText('vmCaptureState', `${pkts} packets`);
 }
 
 // ── WebSocket ─────────────────────────────────────────────────────────────────
@@ -2134,11 +1948,6 @@ async function init() {
   // Capture extra
   $('captureSaveCsv')?.addEventListener('click', downloadCaptureCsv);
 
-  // Control deck
-  $('vmRefresh')?.addEventListener('click', refreshControlDeck);
-  $('vmRunSuite')?.addEventListener('click', runControlSuite);
-  $('vmPeerUrl')?.addEventListener('change', refreshControlDeck);
-
   // Settings
   $('refreshLogs')?.addEventListener('click', loadLogs);
   $('settingsWorkerRefresh')?.addEventListener('click', async () => {
@@ -2178,8 +1987,6 @@ async function init() {
       loadTestCases(),
       loadSequence(),
     ]);
-    await refreshControlDeck();
-    setInterval(refreshControlDeck, 10000);
     startCapturePolling();
     state.serialTimer = setInterval(refreshSerialStatus, 2000);
   } catch (err) {
