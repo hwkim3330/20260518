@@ -309,7 +309,7 @@ async function probeAddrPeer() {
   const sel  = $('addrFillIface');
   if (stat) stat.textContent = 'Probing…';
   try {
-    const data = await api(`${url}/api/interfaces`);
+    const data = await api('/api/probe-node', { method: 'POST', body: JSON.stringify({ url }) });
     if (box) {
       box.innerHTML = '';
       (data.interfaces || []).forEach(iface => renderIfaceCard(iface, box));
@@ -514,7 +514,8 @@ async function loadTestCases() {
     const data = await api('/api/testcases/status');
     // Native format: data.snapshot is an array of groups [{id,name,cases:[]}]
     const snapshot = data.snapshot || data.testCases || [];
-    const groups = Array.isArray(snapshot) ? snapshot : (snapshot.groups || []);
+    const groups = (Array.isArray(snapshot) ? snapshot : (snapshot.groups || []))
+      .filter(g => g.id !== '__sequence__' && g.name !== '__sequence__');
     if ($('scenarioTitle')) $('scenarioTitle').textContent = `Test Sequence`;
     renderTcTree(groups);
   } catch (err) {

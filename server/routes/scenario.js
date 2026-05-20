@@ -205,8 +205,8 @@ router.post('/sequence/events/clear', async (req, res) => {
 // ── Sequence bulk import ──────────────────────────────────────────────────────
 router.post('/sequence/import', async (req, res) => {
   try {
-    const incoming = req.body?.items || req.body;
-    if (!Array.isArray(incoming)) return res.status(400).json({ ok: false, error: 'items array expected' });
+    let incoming = req.body?.items || req.body;
+    if (!Array.isArray(incoming)) incoming = incoming ? [incoming] : [];
     seqSave(req, incoming);
     res.json({ ok: true, count: incoming.length });
   } catch (e) { wErr(res, e); }
@@ -215,11 +215,14 @@ router.post('/sequence/import', async (req, res) => {
 // ── Test-case bulk import ─────────────────────────────────────────────────────
 router.post('/testcases/import', async (req, res) => {
   try {
-    const incoming = req.body?.groups || req.body;
-    if (!Array.isArray(incoming)) return res.status(400).json({ ok: false, error: 'groups array expected' });
+    let incoming = req.body?.groups || req.body;
+    if (!Array.isArray(incoming)) incoming = incoming ? [incoming] : [];
     const cur = tcLoad(req);
     incoming.forEach(g => {
       if (!g || !g.name) return;
+      if (!g.id) g = { ...g, id: crypto.randomUUID() };
+      const cases = g.cases || g.testCases || [];
+      g = { ...g, cases: cases.map(c => c.id ? c : { ...c, id: crypto.randomUUID() }) };
       const i = cur.findIndex(x => x.name === g.name);
       if (i >= 0) cur[i] = { ...cur[i], ...g }; else cur.push(g);
     });
