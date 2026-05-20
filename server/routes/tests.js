@@ -18,6 +18,29 @@ const GET = (url, timeout = 15000) =>
 
 function marker(prefix) { return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`; }
 
+function textHex(text) {
+  return Buffer.from(String(text), 'utf8').toString('hex').toLowerCase();
+}
+
+function packetHasText(row, text) {
+  const needle = String(text);
+  const decoded = row?.decoded ? JSON.stringify(row.decoded) : '';
+  const hex = String(row?.frameHex || row?.hex || '').toLowerCase();
+  return decoded.includes(needle) || hex.includes(textHex(needle));
+}
+
+function packetProtocol(row) {
+  const d = row?.decoded || {};
+  if (d.udp) return 'udp';
+  if (d.tcp) return 'tcp';
+  if (d.icmp) return 'icmp';
+  if (d.arp) return 'arp';
+  const ethType = String(d.ethernet?.etherType || '').toLowerCase();
+  if (ethType === '0x0806') return 'arp';
+  if (ethType === '0x0800') return 'ipv4';
+  return 'raw';
+}
+
 async function clearStartCapture(receiverUrl, interfaces) {
   await POST(`${receiverUrl}/api/capture/clear`, {}).catch(() => {});
   await POST(`${receiverUrl}/api/capture/start`, { interfaces: interfaces ? [interfaces] : [] });
@@ -66,7 +89,7 @@ router.post('/e2e-test', async (req, res) => {
     await new Promise(r => setTimeout(r, Math.min(timeoutSec * 1000, 30000)));
     const rows = await stopGetPackets(receiverUrl, maxFrames * 4);
 
-    const matched = rows.filter(r => r.decoded && JSON.stringify(r.decoded).includes(tag));
+    const matched = rows.filter(r => packetHasText(r, tag));
     const ok = matched.length >= Math.ceil(count * 0.5); // 50% match threshold
 
     const report = {
@@ -123,7 +146,9 @@ router.post('/wire-validation', async (req, res) => {
       await new Promise(r => setTimeout(r, Math.max(intervalMs * count + 500, 1000)));
       const rows = await stopGetPackets(receiverUrl, 500);
 
-      const matched = rows.filter(r => r.decoded && JSON.stringify(r.decoded).includes(tag));
+      const matched = step.kind === 'arp'
+        ? rows.filter(r => packetProtocol(r) === 'arp')
+        : rows.filter(r => packetHasText(r, tag));
       const stepOk  = matched.length > 0;
       totalSent    += sent?.framesSent ?? count;
       totalMatched += matched.length;
