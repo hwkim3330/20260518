@@ -21,6 +21,9 @@ server/reports/
 server/reports/*
 !server/reports/switch-deep-latest.html
 !server/reports/switch-deep-latest.json
+!server/reports/index.html
+!server/reports/switch-deep-*.html
+!server/reports/switch-deep-*.json
 server/server.log
 *.log
 *.tcs

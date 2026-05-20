@@ -9,6 +9,7 @@ const count = Number(process.env.FRAMES || 5);
 const trials = Number(process.env.TRIALS || 5);
 const measurementRetries = Number(process.env.MEASUREMENT_RETRIES || 3);
 const qualityEnabled = process.env.QUALITY !== '0';
+const mappingEnabled = process.env.MAPPING !== '0';
 const sweepSizes = (process.env.SWEEP_SIZES || '64,128,256,512,1024,1500').split(',').map(Number).filter(Boolean);
 const burstIntervals = (process.env.BURST_INTERVALS || '150,50,10,0').split(',').map(Number).filter((v) => Number.isFinite(v));
 
@@ -19,6 +20,8 @@ const directions = [
   { name: 'Peer 이더넷 -> Local enp1s0f3', srcBase: peer, dstBase: local, srcIf: '이더넷', srcMac: 'c8:4d:44:26:3b:a6', srcIp: '169.254.204.140', dstIf: 'enp1s0f3', dstMac: 'a0:36:9f:a8:e4:ab', dstIp: '169.254.12.243' }
 ];
 const qualityDirections = process.env.QUALITY_ALL_DIRECTIONS === '1' ? directions : null;
+const localPorts = directions.slice(0, 2).map((d) => ({ base: local, if: d.srcIf, mac: d.srcMac, ip: d.srcIp }));
+const peerPorts = directions.slice(0, 2).map((d) => ({ base: peer, if: d.dstIf, mac: d.dstMac, ip: d.dstIp }));
 
 async function req(method, url, body, timeout = 12000) {
   const res = await fetch(url, {
@@ -143,6 +146,42 @@ async function runQualitySweep() {
   return { enabled: true, directions: dirs.map((d) => d.name), frameSizes, bursts };
 }
 
+async function runReachabilityMatrix() {
+  if (!mappingEnabled) return { enabled: false, rows: [] };
+  const rows = [];
+  for (const src of localPorts) {
+    for (const dst of peerPorts) {
+      const d = {
+        name: `${src.if} -> ${dst.if}`,
+        srcBase: src.base,
+        dstBase: dst.base,
+        srcIf: src.if,
+        srcMac: src.mac,
+        srcIp: src.ip,
+        dstIf: dst.if,
+        dstMac: dst.mac,
+        dstIp: dst.ip
+      };
+      const result = await runAttempt(d, rows.length + 1, 1, {
+        markerPrefix: 'KETI_MATRIX',
+        count: 2,
+        intervalMs: 80,
+        targetFrameLength: 128,
+        payloadSize: 64,
+        waitMs: 1600
+      });
+      rows.push({ srcIf: src.if, dstIf: dst.if, ...result });
+      console.log(`${d.name} matrix: ${result.matched}/${result.expected} rows=${result.captureRows} err=${result.error}`);
+    }
+  }
+  return {
+    enabled: true,
+    sources: localPorts.map((p) => p.if),
+    destinations: peerPorts.map((p) => p.if),
+    rows
+  };
+}
+
 async function runOne(d, trial) {
   let best = null;
   for (let attempt = 1; attempt <= measurementRetries; attempt += 1) {
@@ -194,10 +233,36 @@ function esc(value) {
   }[ch]));
 }
 
+function writeReportIndex(reportsDir) {
+  const entries = fs.readdirSync(reportsDir)
+    .filter((name) => /^switch-deep-\d.*\.json$/.test(name))
+    .sort()
+    .reverse()
+    .map((jsonName) => {
+      const htmlName = jsonName.replace(/\.json$/, '.html');
+      let data = {};
+      try { data = JSON.parse(fs.readFileSync(path.join(reportsDir, jsonName), 'utf8')); } catch {}
+      const pass = (data.summary || []).filter((s) => s.verdict === 'PASS').length;
+      const total = (data.summary || []).length;
+      const quality = data.quality?.enabled ? 'quality' : '';
+      const matrix = data.mapping?.enabled ? 'matrix' : '';
+      return `<tr><td>${esc(data.generatedAt || jsonName)}</td><td><a href="./${esc(htmlName)}">${esc(htmlName)}</a></td><td>${pass}/${total}</td><td>${esc([quality, matrix].filter(Boolean).join(' + ') || '-')}</td></tr>`;
+    }).join('');
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Switch Report Index</title><style>
+    body{margin:24px;font:14px/1.45 ui-sans-serif,system-ui;background:#f8fafc;color:#17202a}.wrap{max-width:980px;margin:auto}
+    h1{letter-spacing:-.03em}.card{background:white;border:1px solid #d9e2ea;border-radius:18px;padding:18px;box-shadow:0 4px 16px #0f172a10}
+    table{width:100%;border-collapse:collapse}th,td{padding:10px;border-bottom:1px solid #e5edf3;text-align:left}th{font-size:12px;text-transform:uppercase;color:#64748b}
+    a{color:#0f6f78;font-weight:800}.latest{display:inline-block;margin:0 0 14px;border-radius:999px;background:#0f6f78;color:white;padding:8px 12px;text-decoration:none}
+  </style></head><body><div class="wrap"><h1>Switch Report Index</h1><a class="latest" href="./switch-deep-latest.html">Open latest report</a><div class="card"><table><thead><tr><th>Generated</th><th>Report</th><th>Pass</th><th>Extras</th></tr></thead><tbody>${entries || '<tr><td colspan="4">No archived reports yet</td></tr>'}</tbody></table></div></div></body></html>`;
+  fs.writeFileSync(path.join(reportsDir, 'index.html'), html);
+}
+
 function writeReport(report) {
   const reportsDir = path.join(process.cwd(), 'reports');
   fs.mkdirSync(reportsDir, { recursive: true });
-  fs.writeFileSync(path.join(reportsDir, 'switch-deep-latest.json'), JSON.stringify(report, null, 2));
+  const stamp = report.generatedAt.replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z').replace(/[^\dTZ]/g, '');
+  const jsonText = JSON.stringify(report, null, 2);
+  fs.writeFileSync(path.join(reportsDir, 'switch-deep-latest.json'), jsonText);
   const labels = report.summary.map((s) => s.direction);
   const rx = report.summary.map((s) => s.rxPct);
   const apiErrors = report.summary.map((s) => s.apiErrors);
@@ -231,6 +296,7 @@ function writeReport(report) {
   const avgTrialMs = Math.round(allTrials.reduce((sum, t) => sum + t.elapsedMs, 0) / Math.max(1, allTrials.length));
   const setupRetries = allTrials.reduce((sum, t) => sum + Math.max(0, (t.captureStartAttempts || 1) - 1), 0);
   const quality = report.quality || { enabled: false, frameSizes: [], bursts: [] };
+  const mapping = report.mapping || { enabled: false, rows: [] };
   const sizeLabels = [...new Set((quality.frameSizes || []).map((r) => r.size))].sort((a, b) => a - b).map(String);
   const qualityDirLabels = [...new Set((quality.frameSizes || []).map((r) => r.direction))];
   const sizeDatasets = qualityDirLabels.map((direction, index) => ({
@@ -265,6 +331,11 @@ function writeReport(report) {
     }),
     backgroundColor: ['#0f6f78', '#f59e0b', '#2563eb', '#16a34a'][index % 4]
   }));
+  const matrixTable = mapping.enabled ? `<div class="matrix"><h3>2x2 Port Reachability Matrix</h3><table><thead><tr><th>Local source</th>${(mapping.destinations || []).map((dst) => `<th>${esc(dst)}</th>`).join('')}</tr></thead><tbody>${(mapping.sources || []).map((src) => `<tr><th>${esc(src)}</th>${(mapping.destinations || []).map((dst) => {
+    const row = (mapping.rows || []).find((r) => r.srcIf === src && r.dstIf === dst);
+    const ok = row && row.matched >= row.expected && !row.error;
+    return `<td><span class="matrixCell ${ok ? 'ok' : 'fail'}">${row ? `${row.matched}/${row.expected}` : '-'}</span></td>`;
+  }).join('')}</tr>`).join('')}</tbody></table><p class="muted">This matrix checks L2 reachability for every selected local source to peer destination combination. It is not a cable tracer; a learning switch may forward multiple valid combinations.</p></div>` : '';
   const topologyPairs = [
     {
       port: 'P0-P1',
@@ -342,7 +413,8 @@ function writeReport(report) {
     .heatmap{padding:16px;margin:16px 0}.heatRow{display:grid;grid-template-columns:minmax(260px,.95fr) 1.5fr;gap:10px;align-items:center;padding:7px 0;border-top:1px solid #edf2f7}.heatRow:first-of-type{border-top:0}
     .heatRow strong{font-size:12px}.heatCell{display:inline-block;margin:3px;border-radius:8px;padding:5px 8px;font-family:ui-monospace,SFMono-Regular,monospace;font-size:12px;font-weight:800}
     .heatCell.ok{background:#dcfce7;color:#14532d}.heatCell.partial{background:#fef3c7;color:#92400e}.heatCell.fail{background:#fee2e2;color:#991b1b}
-    .qualityGrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0}
+    .qualityGrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0}.matrix{background:white;border:1px solid #d9e2ea;border-radius:18px;box-shadow:0 4px 16px #0f172a10;padding:16px;margin:16px 0}
+    .matrixCell{display:inline-block;border-radius:999px;padding:5px 9px;font-family:ui-monospace,SFMono-Regular,monospace;font-weight:900}.matrixCell.ok{background:#dcfce7;color:#14532d}.matrixCell.fail{background:#fee2e2;color:#991b1b}
     table{width:100%;border-collapse:separate;border-spacing:0;margin-top:16px;overflow:hidden}th,td{padding:10px 12px;border-bottom:1px solid #e5edf3;text-align:left;vertical-align:top}th{background:#edf6f7;font-size:12px;text-transform:uppercase;color:#456}td:nth-child(n+3){font-family:ui-monospace,SFMono-Regular,monospace}
     .pill{display:inline-block;color:white;border-radius:999px;padding:4px 9px;font-size:11px;font-weight:900;white-space:nowrap}.muted{color:#64748b}
     @media(max-width:900px){.cards,.charts,.qualityGrid,.topoLinkCard,.heatRow{grid-template-columns:1fr}.switchPath{min-height:120px}}
@@ -379,6 +451,7 @@ function writeReport(report) {
       <div class="chart"><h3>Burst Interval — Marker RX</h3><canvas id="burstMatch"></canvas></div>
       <div class="chart"><h3>Quality Scope</h3><p class="muted">Frame sizes: ${esc(sizeLabels.join(', '))} bytes. Burst intervals: ${esc(intervalLabels.join(', '))} ms. Quality sweep runs on ${esc((quality.directions || []).join(' / '))} by default to keep runtime bounded.</p></div>
     </div>` : ''}
+    ${matrixTable}
     <div class="heatmap"><h3>Trial Stability Heatmap</h3>${heatmap}</div>
     <table><thead><tr><th>Direction</th><th>Verdict</th><th>Matched</th><th>RX</th><th>API Errors</th><th>Trials</th></tr></thead><tbody>${rows}</tbody></table>
     <p class="muted">Generated artifact: <code>/reports/switch-deep-latest.html</code> and <code>/reports/switch-deep-latest.json</code>.</p>
@@ -405,6 +478,9 @@ function writeReport(report) {
 </body>
 </html>`;
   fs.writeFileSync(path.join(reportsDir, 'switch-deep-latest.html'), html);
+  fs.writeFileSync(path.join(reportsDir, `switch-deep-${stamp}.json`), jsonText);
+  fs.writeFileSync(path.join(reportsDir, `switch-deep-${stamp}.html`), html);
+  writeReportIndex(reportsDir);
 }
 
 (async () => {
@@ -419,6 +495,7 @@ function writeReport(report) {
   const report = { generatedAt: new Date().toISOString(), local, peer, count, trials, measurementRetries, results };
   report.summary = summarize(results);
   report.quality = await runQualitySweep();
+  report.mapping = await runReachabilityMatrix();
   writeReport(report);
   console.log('Report: /reports/switch-deep-latest.html');
 })().catch((err) => {
