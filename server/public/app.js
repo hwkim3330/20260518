@@ -45,12 +45,10 @@ function esc(v) {
 
 function tsNow() {
   const d = new Date();
-  const h = String(d.getHours()).padStart(2, '0');
-  const m = String(d.getMinutes()).padStart(2, '0');
-  const s = String(d.getSeconds()).padStart(2, '0');
-  const ms = String(d.getMilliseconds()).padStart(3, '0');
-  return `[${h}:${m}:${s}.${ms}]`;
+  return `[${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}.${String(d.getMilliseconds()).padStart(3,'0')}]`;
 }
+
+function pad2(n) { return String(n).padStart(2,'0'); }
 
 // ── Tab switching ─────────────────────────────────────────────────────────────
 function initTabs() {
@@ -60,7 +58,15 @@ function initTabs() {
       document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
       tab.classList.add('active');
       $(tab.dataset.view)?.classList.add('active');
-      if (tab.dataset.view === 'hyperTermView') refreshSerialStatus();
+      if (tab.dataset.view === 'hyperTermView' || tab.dataset.view === 'hyperTerminalView') {
+        refreshSerialStatus();
+      }
+    });
+  });
+  // Light theme uses .modeTab class
+  document.querySelectorAll('.modeTab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      if (tab.dataset.view === 'hyperTerminalView') refreshSerialStatus();
     });
   });
 }
@@ -76,19 +82,20 @@ async function refreshInterfaces() {
 
 function renderSenderInterfaces() {
   const wrap = $('senderInterfaces');
+  if (!wrap) return;
   if (!state.interfaces.length) { wrap.innerHTML = '<p style="color:var(--muted);font-size:10px;">No interfaces found.</p>'; return; }
   wrap.innerHTML = '';
   for (const iface of state.interfaces) {
     const btn = document.createElement('button');
     btn.className = `chip ${iface.state === 'up' ? 'up' : ''}`;
-    btn.textContent = `${iface.name}`;
+    btn.textContent = iface.name;
     btn.title = iface.mac || '';
     btn.addEventListener('click', () => {
       state.senderIface = iface.name;
       wrap.querySelectorAll('.chip').forEach(b => b.classList.remove('selected'));
       btn.classList.add('selected');
-      if (!$('srcMac').value && iface.mac) $('srcMac').value = iface.mac;
-      if (!$('srcIp').value && iface.ipv4?.[0]?.local) $('srcIp').value = iface.ipv4[0].local;
+      if (!$('srcMac')?.value && iface.mac) $('srcMac').value = iface.mac;
+      if (!$('srcIp')?.value && iface.ipv4?.[0]?.local) $('srcIp').value = iface.ipv4[0].local;
     });
     wrap.appendChild(btn);
   }
@@ -96,7 +103,7 @@ function renderSenderInterfaces() {
 
 // ── Frame Builder ─────────────────────────────────────────────────────────────
 function buildProfile() {
-  const profile = {
+  return {
     protocol: $('protocol').value,
     interface: state.senderIface || null,
     dstMac: $('dstMac').value.trim(),
@@ -107,11 +114,8 @@ function buildProfile() {
     count: Number($('count').value) || 1,
     intervalMs: Number($('intervalMs').value) || 0,
     payload: { mode: 'text', data: $('payload').value },
+    ...($('vlanEnabled')?.checked ? { vlan: { enabled: true, id: Number($('vlanId').value) || 100, priority: Number($('vlanPriority').value) || 0 } } : {}),
   };
-  if ($('vlanEnabled').checked) {
-    profile.vlan = { enabled: true, id: Number($('vlanId').value) || 100, priority: Number($('vlanPriority').value) || 0 };
-  }
-  return profile;
 }
 
 function formatHex(hex) {
@@ -132,9 +136,7 @@ async function previewFrame() {
     const out = data.stdout || data;
     $('decoded').textContent = JSON.stringify(out.decoded || {}, null, 2);
     $('hexdump').textContent = formatHex(out.frameHex);
-  } catch (err) {
-    toast(`Build failed: ${err.message}`, 'bad');
-  }
+  } catch (err) { toast(`Build failed: ${err.message}`, 'bad'); }
 }
 
 async function sendFrame() {
@@ -143,31 +145,86 @@ async function sendFrame() {
     const data = await api('/api/send', { method: 'POST', body: JSON.stringify(buildProfile()) });
     const out = data.stdout || data;
     toast(`Sent ${out.framesSent || 1} frame(s), ${out.bytesSent || '?'} bytes`, 'ok');
-  } catch (err) {
-    toast(`Send failed: ${err.message}`, 'bad');
-  }
+  } catch (err) { toast(`Send failed: ${err.message}`, 'bad'); }
 }
 
 // ── Capture ───────────────────────────────────────────────────────────────────
-async function refreshCaptureStatus() {
-  const data = await api('/api/capture/status');
-  $('captureRunning').textContent = data.running ? 'capturing' : 'idle';
-  $('captureTotal').textContent = `${data.totalPackets || 0} pkts`;
+function formatCaptureRow(r) {
+  const eth  = r.decoded?.ethernet || r.decoded?.eth || {};
+  const ip   = r.decoded?.ipv4 || {};
+  const udp  = r.decoded?.udp || {};
+  const tcp  = r.decoded?.tcp || {};
+  const icmp = r.decoded?.icmp || {};
+  const arp  = r.decoded?.arp || {};
 
-  const list = $('captureInterfaces');
-  list.innerHTML = '';
-  state.captureInterfaces = new Set((data.interfaces || []).filter(i => i.selected).map(i => i.name));
-  for (const iface of data.interfaces || []) {
-    const label = document.createElement('label');
-    label.className = 'check-row';
-    label.innerHTML = `<input type="checkbox" ${iface.selected ? 'checked' : ''} value="${esc(iface.name)}">
-      <span><strong>${esc(iface.name)}</strong><small>${esc(iface.description || iface.state || '')}</small></span>`;
-    label.querySelector('input').addEventListener('change', e => {
-      if (e.target.checked) state.captureInterfaces.add(iface.name);
-      else state.captureInterfaces.delete(iface.name);
-    });
-    list.appendChild(label);
-  }
+  let protocol = 'RAW';
+  if      (udp.srcPort  !== undefined) protocol = 'UDP';
+  else if (tcp.srcPort  !== undefined) protocol = 'TCP';
+  else if (icmp.type    !== undefined) protocol = 'ICMP';
+  else if (arp.operation !== undefined) protocol = 'ARP';
+  else if (ip.src)                     protocol = 'IPv4';
+
+  let source = ip.src  || eth.srcMac || '';
+  let dest   = ip.dst  || eth.dstMac || '';
+  if (udp.srcPort  !== undefined) { source += `:${udp.srcPort}`;  dest += `:${udp.dstPort}`; }
+  else if (tcp.srcPort !== undefined) { source += `:${tcp.srcPort}`; dest += `:${tcp.dstPort}`; }
+
+  let info = '';
+  if (udp.srcPort !== undefined)
+    info = `${udp.srcPort} → ${udp.dstPort}  Len=${r.length}`;
+  else if (tcp.srcPort !== undefined)
+    info = `${tcp.srcPort} → ${tcp.dstPort}`;
+  else if (icmp.type !== undefined)
+    info = `Type=${icmp.type} Code=${icmp.code || 0}`;
+  else if (arp.operation !== undefined)
+    info = arp.operation === 1
+      ? `Who has ${arp.targetIp}? Tell ${arp.senderIp}`
+      : `${arp.senderIp} is at ${arp.senderMac}`;
+  else if (eth.etherType)
+    info = `EtherType=0x${Number(eth.etherType).toString(16).toUpperCase().padStart(4,'0')}`;
+
+  const d = new Date((r.timestamp || 0) * 1000);
+  const time = `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3,'0')}`;
+
+  return {
+    no: r.no,
+    time,
+    interfaceName: r.interface || r.interfaceName || '',
+    srcMac: eth.srcMac || '',
+    dstMac: eth.dstMac || '',
+    source,
+    destination: dest,
+    protocol,
+    length: r.length,
+    info,
+    detailText: JSON.stringify(r.decoded || {}, null, 2),
+    hexDump: formatHex(r.frameHex || r.hex || ''),
+  };
+}
+
+async function refreshCaptureStatus() {
+  try {
+    const data = await api('/api/capture/status');
+    const running = data.running || data.capturing || false;
+    if ($('captureRunning')) $('captureRunning').textContent = running ? '● capturing' : 'idle';
+    if ($('captureTotal'))   $('captureTotal').textContent   = `${data.totalPackets || data.captureCount || 0} pkts`;
+
+    const list = $('captureInterfaces');
+    if (!list) return;
+    list.innerHTML = '';
+    state.captureInterfaces = new Set((data.interfaces || []).filter(i => i.selected).map(i => i.name));
+    for (const iface of data.interfaces || []) {
+      const label = document.createElement('label');
+      label.className = 'check-row';
+      label.innerHTML = `<input type="checkbox" ${iface.selected ? 'checked' : ''} value="${esc(iface.name)}">
+        <span><strong>${esc(iface.name)}</strong><small>${esc(iface.description || iface.state || '')}</small></span>`;
+      label.querySelector('input').addEventListener('change', e => {
+        if (e.target.checked) state.captureInterfaces.add(iface.name);
+        else state.captureInterfaces.delete(iface.name);
+      });
+      list.appendChild(label);
+    }
+  } catch { /* keep stable */ }
 }
 
 async function startCapture() {
@@ -180,41 +237,46 @@ async function startCapture() {
 }
 
 async function stopCapture() {
-  await api('/api/capture/stop', { method: 'POST', body: '{}' });
-  toast('Capture stopped', 'ok');
-  await refreshCaptureStatus();
+  try {
+    await api('/api/capture/stop', { method: 'POST', body: '{}' });
+    toast('Capture stopped', 'ok');
+    await refreshCaptureStatus();
+  } catch (err) { toast(`Stop failed: ${err.message}`, 'bad'); }
 }
 
 async function clearCapture() {
-  await api('/api/capture/clear', { method: 'POST', body: '{}' });
-  state.captureRows = [];
-  renderCaptureRows();
-  $('packetDetails').textContent = 'Select a packet.';
-  $('packetHex').textContent = '';
-  await refreshCaptureStatus();
+  try {
+    await api('/api/capture/clear', { method: 'POST', body: '{}' });
+    state.captureRows = [];
+    renderCaptureRows();
+    if ($('packetDetails')) $('packetDetails').textContent = 'Select a packet.';
+    if ($('packetHex'))     $('packetHex').textContent = '';
+    await refreshCaptureStatus();
+  } catch { /* ignore */ }
 }
 
 function startCapturePolling() {
   if (state.captureTimer) clearInterval(state.captureTimer);
-  state.captureTimer = setInterval(loadCapturePackets, 900);
+  state.captureTimer = setInterval(loadCapturePackets, 1200);
   loadCapturePackets();
 }
 
 async function loadCapturePackets() {
   try {
     const data = await api('/api/capture/packets?limit=1000');
-    state.captureRows = data.rows || [];
+    state.captureRows = (data.rows || []).map(formatCaptureRow);
     renderCaptureRows();
-    await refreshCaptureStatus();
-  } catch { /* keep UI stable */ }
+    if ($('captureTotal'))
+      $('captureTotal').textContent = `${data.total || state.captureRows.length} pkts`;
+  } catch { /* keep stable */ }
 }
 
 function rowMatchesFilter(row, filter) {
   if (!filter) return true;
   const text = `${row.no} ${row.time} ${row.interfaceName} ${row.source} ${row.destination} ${row.protocol} ${row.length} ${row.info} ${row.srcMac} ${row.dstMac}`.toLowerCase();
   return filter.split(/\s+/).filter(Boolean).every(tok => {
-    if (tok.startsWith('mac:')) return `${row.srcMac} ${row.dstMac}`.toLowerCase().includes(tok.slice(4));
-    if (tok.startsWith('ip:')) return `${row.source} ${row.destination}`.toLowerCase().includes(tok.slice(3));
+    if (tok.startsWith('mac:'))  return `${row.srcMac} ${row.dstMac}`.toLowerCase().includes(tok.slice(4));
+    if (tok.startsWith('ip:'))   return `${row.source} ${row.destination}`.toLowerCase().includes(tok.slice(3));
     if (tok.startsWith('port:')) return `${row.source} ${row.destination} ${row.info}`.toLowerCase().includes(tok.slice(5));
     return text.includes(tok);
   });
@@ -222,13 +284,14 @@ function rowMatchesFilter(row, filter) {
 
 function renderCaptureRows() {
   const tbody = $('captureRows');
-  const filter = $('captureFilter').value.trim().toLowerCase();
+  if (!tbody) return;
+  const filter = ($('captureFilter')?.value || '').trim().toLowerCase();
   const rows = state.captureRows.filter(r => rowMatchesFilter(r, filter));
-  if (!rows.length) { tbody.innerHTML = `<tr><td colspan="10" class="empty">No packets match.</td></tr>`; return; }
+  if (!rows.length) { tbody.innerHTML = `<tr><td colspan="10" class="empty">No packets captured.</td></tr>`; return; }
   tbody.innerHTML = rows.map((r, i) => `
     <tr data-idx="${i}" class="proto-${esc((r.protocol||'').toLowerCase())}">
       <td>${r.no}</td><td>${esc(r.time)}</td><td>${esc(r.interfaceName)}</td>
-      <td>${esc(r.srcMac)}</td><td>${esc(r.dstMac)}</td>
+      <td class="mac">${esc(r.srcMac)}</td><td class="mac">${esc(r.dstMac)}</td>
       <td>${esc(r.source)}</td><td>${esc(r.destination)}</td>
       <td><strong>${esc(r.protocol)}</strong></td>
       <td>${r.length}</td><td>${esc(r.info)}</td>
@@ -238,27 +301,28 @@ function renderCaptureRows() {
       tbody.querySelectorAll('tr').forEach(r => r.classList.remove('selected'));
       tr.classList.add('selected');
       const row = rows[Number(tr.dataset.idx)];
-      $('packetDetails').textContent = row.detailText || 'No decoded detail.';
-      $('packetHex').textContent = row.hexDump || '';
+      if ($('packetDetails')) $('packetDetails').textContent = row.detailText || 'No detail.';
+      if ($('packetHex'))     $('packetHex').textContent = row.hexDump || '';
     });
   });
 }
 
-// ── Scenario Lab — Test Cases ─────────────────────────────────────────────────
+// ── Scenario Lab ──────────────────────────────────────────────────────────────
 async function loadTestCases() {
   try {
     const data = await api('/api/testcases/status');
     const tc = data.testCases || {};
-    $('scenarioTitle').textContent = `Test Sequence — ${tc.selected || '(none selected)'}`;
+    if ($('scenarioTitle')) $('scenarioTitle').textContent = `Test Sequence — ${tc.selected || '(none selected)'}`;
     renderTcTree(tc.groups || []);
     renderSequenceRows(tc.sequence || []);
   } catch (err) {
-    $('scenarioTitle').textContent = `Test Sequence — load failed: ${err.message}`;
+    if ($('scenarioTitle')) $('scenarioTitle').textContent = `Test Sequence — load failed`;
   }
 }
 
 function renderTcTree(groups) {
   const root = $('tcTree');
+  if (!root) return;
   if (!groups.length) { root.innerHTML = '<p style="color:var(--muted);font-size:10px;">No groups. Add one above.</p>'; return; }
   root.innerHTML = groups.map(g => `
     <div class="tc-group">
@@ -286,19 +350,18 @@ function renderTcTree(groups) {
 
 function renderSequenceRows(items) {
   const tbody = $('sequenceRows');
+  if (!tbody) return;
   if (!items.length) { tbody.innerHTML = `<tr><td colspan="8" class="empty">No sequence loaded.</td></tr>`; return; }
   tbody.innerHTML = items.map((item, i) => `
     <tr>
-      <td>${i}</td>
-      <td>${esc(item.kind)}</td>
-      <td>${item.checked ? '✓' : ''}</td>
+      <td>${i}</td><td>${esc(item.kind)}</td><td>${item.checked ? '✓' : ''}</td>
       <td>${esc(item.packetName || item.eventType || '')}</td>
       <td colspan="4" style="color:var(--muted);">${esc(item.eventType ? JSON.stringify(item.params || {}) : `${(item.blocks || []).length} block(s)`)}</td>
     </tr>`).join('');
 }
 
 async function addTcGroup() {
-  const name = $('tcGroupName').value.trim();
+  const name = $('tcGroupName')?.value.trim();
   if (!name) return;
   await api('/api/testcases/add-group', { method: 'POST', body: JSON.stringify({ name }) });
   $('tcGroupName').value = '';
@@ -306,7 +369,7 @@ async function addTcGroup() {
 }
 
 async function addTcFromCurrent() {
-  const name = $('tcName').value.trim();
+  const name = $('tcName')?.value.trim();
   if (!name) { toast('Enter TC name', 'warn'); return; }
   await api('/api/testcases/add', { method: 'POST', body: JSON.stringify({ groupIndex: state.selectedGroupIdx || 0, name }) });
   $('tcName').value = '';
@@ -316,20 +379,20 @@ async function addTcFromCurrent() {
 async function saveTcCurrent() {
   try {
     await api('/api/testcases/save-current', { method: 'POST', body: '{}' });
-    toast('Saved to selected test case', 'ok');
+    toast('Saved', 'ok');
     await loadTestCases();
   } catch (err) { toast(`Save failed: ${err.message}`, 'bad'); }
 }
 
-// ── Scenario Terminal ─────────────────────────────────────────────────────────
 function appendSeqTerm(text) {
   const el = $('seqTermOutput');
-  el.textContent += text + '\n';
+  if (!el) return;
+  el.textContent += `${tsNow()}  ${text}\n`;
   el.scrollTop = el.scrollHeight;
 }
 
 async function seqTermSend() {
-  const text = $('seqTermInput').value.trim();
+  const text = $('seqTermInput')?.value.trim();
   if (!text) return;
   try {
     await api('/api/serial/send', { method: 'POST', body: JSON.stringify({ text }) });
@@ -338,22 +401,29 @@ async function seqTermSend() {
   } catch (err) { toast(`Send failed: ${err.message}`, 'bad'); }
 }
 
-// ── Register (Scenario Lab panel) ────────────────────────────────────────────
+// ── Register (Scenario Lab panel) ─────────────────────────────────────────────
 async function refreshRegStatus() {
   try {
     const data = await api('/api/register/status');
-    $('regStatus').textContent = `${data.serialConnected ? '● connected' : '○ disconnected'} — base ${data.baseAddress || '0x0'}`;
-    if (data.baseAddress) $('regBaseAddr').value = data.baseAddress;
-  } catch { $('regStatus').textContent = 'offline'; }
+    if ($('regStatus')) {
+      $('regStatus').textContent = `${data.serialConnected ? '● connected' : '○ disconnected'} — base ${data.baseAddress || '0x0'}`;
+    }
+    if (data.baseAddress !== undefined && $('regBaseAddr')) {
+      const b = typeof data.baseAddress === 'number'
+        ? `0x${data.baseAddress.toString(16).toUpperCase().padStart(8,'0')}`
+        : data.baseAddress;
+      $('regBaseAddr').value = b;
+    }
+  } catch { if ($('regStatus')) $('regStatus').textContent = 'offline'; }
 }
 
 async function readRegister() {
   try {
     const data = await api('/api/register/read', { method: 'POST', body: JSON.stringify({ offset: $('regOffset').value }) });
-    $('regValue').value = data.value;
-    $('regResult').textContent = JSON.stringify(data, null, 2);
+    if ($('regValue')) $('regValue').value = data.value;
+    if ($('regResult')) $('regResult').textContent = JSON.stringify(data, null, 2);
   } catch (err) {
-    $('regResult').textContent = `Read failed: ${err.message}`;
+    if ($('regResult')) $('regResult').textContent = `Read failed: ${err.message}`;
     toast(`Register read failed: ${err.message}`, 'bad');
   }
 }
@@ -361,15 +431,14 @@ async function readRegister() {
 async function writeRegister() {
   try {
     const data = await api('/api/register/write', { method: 'POST', body: JSON.stringify({ offset: $('regOffset').value, value: $('regValue').value }) });
-    $('regResult').textContent = JSON.stringify(data, null, 2);
+    if ($('regResult')) $('regResult').textContent = JSON.stringify(data, null, 2);
     toast('Register written', 'ok');
   } catch (err) {
-    $('regResult').textContent = `Write failed: ${err.message}`;
+    if ($('regResult')) $('regResult').textContent = `Write failed: ${err.message}`;
     toast(`Register write failed: ${err.message}`, 'bad');
   }
 }
 
-// ── FDB (Scenario Lab panel) ──────────────────────────────────────────────────
 function fdbPayload() {
   return { mac: $('fdbMac').value.trim(), port: Number($('fdbPort').value) || 0, vlanValid: $('fdbVlanValid').checked, vlanId: Number($('fdbVlanId').value) || 0 };
 }
@@ -377,135 +446,124 @@ function fdbPayload() {
 async function fdbCall(path, payload = fdbPayload()) {
   try {
     const data = await api(path, { method: 'POST', body: JSON.stringify(payload) });
-    $('fdbResult').textContent = JSON.stringify(data, null, 2);
+    if ($('fdbResult')) $('fdbResult').textContent = JSON.stringify(data, null, 2);
     toast(data.status || 'FDB done', 'ok');
   } catch (err) {
-    $('fdbResult').textContent = `FDB failed: ${err.message}`;
+    if ($('fdbResult')) $('fdbResult').textContent = `FDB failed: ${err.message}`;
     toast(`FDB failed: ${err.message}`, 'bad');
   }
 }
 
 // ── Register Viewer (HyperTerminal tab) ──────────────────────────────────────
+function setRegStatus(id, text, isOk) {
+  const el = $(id);
+  if (!el) return;
+  el.textContent = text;
+  el.className = `reg-status${isOk ? ' ok' : ''}`;
+  if (isOk) setTimeout(() => { if (el.textContent === text) { el.textContent = ''; el.className = 'reg-status'; } }, 3000);
+}
+
 async function rvRead(offset, valId, statusId) {
-  const stEl = $(statusId);
-  if (stEl) { stEl.textContent = ''; stEl.className = 'reg-status'; }
   try {
     const data = await api('/api/register/read', { method: 'POST', body: JSON.stringify({ offset }) });
-    if (valId) $(valId).value = data.value || `0x${(data.valueDec || 0).toString(16).padStart(8,'0').toUpperCase()}`;
-    if (stEl) { stEl.textContent = 'OK'; stEl.className = 'reg-status ok'; }
+    const val = data.value || `0x${(data.valueDec || 0).toString(16).toUpperCase().padStart(8,'0')}`;
+    if (valId && $(valId)) $(valId).value = val;
+    setRegStatus(statusId, 'OK', true);
     return data;
-  } catch (err) {
-    if (stEl) stEl.textContent = `오류: ${err.message}`;
-    throw err;
-  }
+  } catch (err) { setRegStatus(statusId, `오류: ${err.message}`, false); }
 }
 
 async function rvWrite(offset, value, statusId) {
-  const stEl = $(statusId);
-  if (stEl) { stEl.textContent = ''; stEl.className = 'reg-status'; }
   try {
     await api('/api/register/write', { method: 'POST', body: JSON.stringify({ offset, value }) });
-    if (stEl) { stEl.textContent = '쓰기 완료'; stEl.className = 'reg-status ok'; }
-  } catch (err) {
-    if (stEl) stEl.textContent = `오류: ${err.message}`;
-    throw err;
-  }
+    setRegStatus(statusId, '쓰기 완료', true);
+  } catch (err) { setRegStatus(statusId, `오류: ${err.message}`, false); }
 }
 
 function initRegViewer() {
-  // Generic data-rw buttons (data-off = ID of offset input, data-off-val = literal offset)
-  document.getElementById('regContent').addEventListener('click', async e => {
+  const rc = $('regContent');
+  if (!rc) return;
+
+  // Generic data-rw buttons delegation
+  rc.addEventListener('click', async e => {
     const btn = e.target.closest('[data-rw]');
     if (!btn) return;
-    const rw = btn.dataset.rw;
+    const rw  = btn.dataset.rw;
     const valId = btn.dataset.val;
-    const stId = btn.dataset.st;
-    // offset can come from a literal value or an input element
-    const offset = btn.dataset.offVal || (btn.dataset.off ? $(btn.dataset.off).value : null);
+    const stId  = btn.dataset.st;
+    const offset = btn.dataset.offVal || (btn.dataset.off ? ($(btn.dataset.off)?.value || btn.dataset.off) : null);
     if (!offset) return;
     try {
       if (rw === 'read') {
         await rvRead(offset, valId, stId);
-      } else if (rw === 'write') {
-        const val = valId ? $(valId).value : '0x00000000';
+      } else {
+        const val = valId && $(valId) ? $(valId).value : '0x00000000';
         await rvWrite(offset, val, stId);
       }
-    } catch { /* status already updated */ }
+    } catch { /* status already set */ }
   });
 
   // READ ALL buttons
-  $('sysctlReadAll')?.addEventListener('click', async () => {
-    await Promise.allSettled([
+  $('sysctlReadAll')?.addEventListener('click', () =>
+    Promise.allSettled([
       rvRead('0x000', 'rv-version', 'rv-st-version'),
-      rvRead('0x008', 'rv-enable', 'rv-st-enable'),
-      rvRead('0x00C', 'rv-ahb', 'rv-st-ahb'),
-    ]);
-  });
+      rvRead('0x008', 'rv-enable',  'rv-st-enable'),
+      rvRead('0x00C', 'rv-ahb',     'rv-st-ahb'),
+    ])
+  );
 
-  $('interruptReadAll')?.addEventListener('click', async () => {
-    const offCtrl = $('rv-intr-ctrl-off').value;
-    const offRaw  = $('rv-intr-raw-off').value;
-    const offMask = $('rv-intr-mask-off').value;
-    const offSw   = $('rv-intr-sw-off').value;
-    await Promise.allSettled([
-      rvRead(offCtrl, 'rv-intr-ctrl', 'rv-st-intr-ctrl'),
-      rvRead(offRaw,  'rv-intr-raw',  'rv-st-intr-raw'),
-      rvRead(offMask, 'rv-intr-mask', 'rv-st-intr-mask'),
-      rvRead(offSw,   'rv-intr-sw',   'rv-st-intr-sw'),
-    ]);
-  });
+  $('interruptReadAll')?.addEventListener('click', () =>
+    Promise.allSettled([
+      rvRead($('rv-intr-ctrl-off')?.value || '0x010', 'rv-intr-ctrl', 'rv-st-intr-ctrl'),
+      rvRead($('rv-intr-raw-off')?.value  || '0x014', 'rv-intr-raw',  'rv-st-intr-raw'),
+      rvRead($('rv-intr-mask-off')?.value || '0x018', 'rv-intr-mask', 'rv-st-intr-mask'),
+      rvRead($('rv-intr-sw-off')?.value   || '0x01C', 'rv-intr-sw',   'rv-st-intr-sw'),
+    ])
+  );
 
-  $('timestampReadAll')?.addEventListener('click', async () => {
-    await Promise.allSettled([
-      rvRead($('rv-ts-ns-off').value,    'rv-ts-ns',    'rv-st-ts'),
-      rvRead($('rv-ts-seclo-off').value, 'rv-ts-seclo', 'rv-st-ts'),
-      rvRead($('rv-ts-adj-off').value,   'rv-ts-adj',   'rv-st-ts-adj'),
-      rvRead($('rv-ts-clk-off').value,   'rv-ts-clk',   'rv-st-ts-clk'),
-    ]);
-  });
+  $('timestampReadAll')?.addEventListener('click', () =>
+    Promise.allSettled([
+      rvRead($('rv-ts-ns-off')?.value    || '0x020', 'rv-ts-ns',    'rv-st-ts'),
+      rvRead($('rv-ts-seclo-off')?.value || '0x024', 'rv-ts-seclo', 'rv-st-ts'),
+      rvRead($('rv-ts-adj-off')?.value   || '0x030', 'rv-ts-adj',   'rv-st-ts-adj'),
+      rvRead($('rv-ts-clk-off')?.value   || '0x038', 'rv-ts-clk',   'rv-st-ts-clk'),
+    ])
+  );
 
-  $('ledclockReadAll')?.addEventListener('click', async () => {
-    await Promise.allSettled([
-      rvRead($('rv-led-ctrl-off').value,  'rv-led-ctrl',  'rv-st-led'),
-      rvRead($('rv-ext-sw-off').value,    'rv-ext-sw',    'rv-st-ext-sw'),
-      rvRead($('rv-clk-limit-off').value, 'rv-clk-limit', 'rv-st-clk-limit'),
-    ]);
-  });
+  $('ledclockReadAll')?.addEventListener('click', () =>
+    Promise.allSettled([
+      rvRead($('rv-led-ctrl-off')?.value  || '0x040', 'rv-led-ctrl',  'rv-st-led'),
+      rvRead($('rv-ext-sw-off')?.value    || '0x044', 'rv-ext-sw',    'rv-st-ext-sw'),
+      rvRead($('rv-clk-limit-off')?.value || '0x048', 'rv-clk-limit', 'rv-st-clk-limit'),
+    ])
+  );
 
-  $('countReadAll')?.addEventListener('click', async () => {
-    await rvRead($('rv-count-off').value, 'rv-count-v', 'rv-st-count');
-  });
+  $('countReadAll')?.addEventListener('click', () =>
+    rvRead($('rv-count-off')?.value || '0x300', 'rv-count-v', 'rv-st-count')
+  );
 
-  // FDB operations in Register Viewer
-  function rvFdbPayload() {
-    return {
-      mac: $('rv-fdbMac').value.trim(),
-      port: Number($('rv-fdbPort').value) || 0,
-      vlanValid: $('rv-fdbVlanValid').checked,
-      vlanId: Number($('rv-fdbVid').value) || 0,
-    };
+  // FDB in Register Viewer
+  function rvFdbPay() {
+    return { mac: $('rv-fdbMac')?.value.trim(), port: Number($('rv-fdbPort')?.value) || 0, vlanValid: $('rv-fdbVlanValid')?.checked, vlanId: Number($('rv-fdbVid')?.value) || 0 };
   }
-
-  async function rvFdbCall(path, payload = rvFdbPayload()) {
+  async function rvFdbCall(path, payload = rvFdbPay()) {
     try {
       const data = await api(path, { method: 'POST', body: JSON.stringify(payload) });
-      $('rv-fdbResult').textContent = JSON.stringify(data, null, 2);
+      if ($('rv-fdbResult')) $('rv-fdbResult').textContent = JSON.stringify(data, null, 2);
       toast(data.status || 'FDB done', 'ok');
     } catch (err) {
-      $('rv-fdbResult').textContent = `FDB failed: ${err.message}`;
+      if ($('rv-fdbResult')) $('rv-fdbResult').textContent = `FDB failed: ${err.message}`;
       toast(`FDB failed: ${err.message}`, 'bad');
     }
   }
-
-  $('rv-fdbRead')?.addEventListener('click', () => rvFdbCall('/api/fdb/read'));
-  $('rv-fdbWrite')?.addEventListener('click', () => rvFdbCall('/api/fdb/write'));
+  $('rv-fdbRead')?.addEventListener('click',   () => rvFdbCall('/api/fdb/read'));
+  $('rv-fdbWrite')?.addEventListener('click',  () => rvFdbCall('/api/fdb/write'));
   $('rv-fdbDelete')?.addEventListener('click', () => rvFdbCall('/api/fdb/delete'));
-  $('rv-fdbFlush')?.addEventListener('click', () => { if (confirm('Flush all FDB entries?')) rvFdbCall('/api/fdb/flush', {}); });
+  $('rv-fdbFlush')?.addEventListener('click',  () => { if (confirm('Flush all FDB entries?')) rvFdbCall('/api/fdb/flush', {}); });
 }
 
 // ── TOC Navigation ────────────────────────────────────────────────────────────
 function initTocNav() {
-  const content = $('regContent');
   document.querySelectorAll('[data-sec]').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('[data-sec]').forEach(b => b.classList.remove('toc-active'));
@@ -516,134 +574,202 @@ function initTocNav() {
   });
 }
 
-// ── Layout Toggle (⊞/⊟) ──────────────────────────────────────────────────────
+// ── Layout Toggle & Splitter ──────────────────────────────────────────────────
 function initLayoutToggle() {
-  const btn = $('layoutToggle');
-  const content = $('hyperContent');
-  let horizontal = false;
+  const btn  = $('layoutToggle');
+  const wrap = $('hyperContent');
+  if (!btn || !wrap) return;
+  let horiz = false;
   btn.addEventListener('click', () => {
-    horizontal = !horizontal;
-    content.classList.toggle('horizontal', horizontal);
-    btn.textContent = horizontal ? '⊟' : '⊞';
-    btn.title = horizontal ? '상하 레이아웃으로 전환' : '3분할 레이아웃으로 전환';
+    horiz = !horiz;
+    wrap.classList.toggle('horizontal', horiz);
+    btn.textContent = horiz ? '⊟' : '⊞';
+    btn.title = horiz ? '상하 레이아웃으로 전환' : '3분할 레이아웃으로 전환';
   });
 }
 
-// ── Splitter Drag ─────────────────────────────────────────────────────────────
 function initSplitter() {
   const splitter = $('hyperSplitter');
-  const content  = $('hyperContent');
+  const wrap     = $('hyperContent');
   const terminal = document.querySelector('.hyper-terminal');
+  if (!splitter || !wrap || !terminal) return;
   let dragging = false, startPos = 0, startSize = 0;
 
   splitter.addEventListener('mousedown', e => {
-    dragging = true;
-    const isH = content.classList.contains('horizontal');
+    dragging  = true;
+    const isH = wrap.classList.contains('horizontal');
     startPos  = isH ? e.clientX : e.clientY;
     startSize = isH ? terminal.offsetWidth : terminal.offsetHeight;
     e.preventDefault();
   });
-
   document.addEventListener('mousemove', e => {
     if (!dragging) return;
-    const isH  = content.classList.contains('horizontal');
-    const delta = (isH ? e.clientX : e.clientY) - startPos;
-    const size  = Math.max(80, startSize - delta);
-    if (isH) terminal.style.width  = `${size}px`;
-    else     terminal.style.height = `${size}px`;
+    const isH  = wrap.classList.contains('horizontal');
+    const size = Math.max(80, startSize - ((isH ? e.clientX : e.clientY) - startPos));
+    terminal.style[isH ? 'width' : 'height'] = `${size}px`;
   });
-
   document.addEventListener('mouseup', () => { dragging = false; });
 }
 
 // ── HyperTerminal (Serial) ────────────────────────────────────────────────────
 function updateSerialUI(connected, statusText) {
   state.serialConnected = connected;
-  const led  = $('serialLed');
-  const btn  = $('serialConnect');
-  const stEl = $('serialState');
-  led.classList.toggle('connected', connected);
-  btn.textContent = connected ? '연결 해제' : '연결';
-  btn.className   = connected ? 'danger' : 'primary';
-  btn.style.width = '80px';
-  if (stEl && statusText !== undefined) stEl.textContent = statusText;
+  const led = $('serialLed');
+  const btn = $('serialConnect');
+  const st  = $('serialState');
+  if (led) led.classList.toggle('connected', connected);
+  if (btn) {
+    btn.textContent = connected ? '연결 해제' : '연결';
+    btn.className   = connected ? 'danger' : 'primary';
+    btn.style.width = '80px';
+  }
+  if (st && statusText !== undefined) st.textContent = statusText;
+}
+
+// appendHyperTerm — add timestamped line to serial terminal output
+function appendHyperTerm(text) {
+  const out = $('serialOutput');
+  if (!out) return;
+  const now = new Date();
+  const ts  = `[${pad2(now.getHours())}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}.${String(now.getMilliseconds()).padStart(3, '0')}]`;
+  if (out.textContent === 'No terminal output.') out.textContent = '';
+  out.textContent += `${ts}  ${text}\n`;
+  out.scrollTop = out.scrollHeight;
+}
+
+// TTY streaming for native Linux serial (no C# worker)
+let _ttyStreamCtrl = null;
+function startTtyStream(session) {
+  if (_ttyStreamCtrl) { _ttyStreamCtrl.abort(); }
+  _ttyStreamCtrl = new AbortController();
+  const url = `/api/tty/stream${session ? `?session=${encodeURIComponent(session)}` : ''}`;
+  let buf = '';
+
+  fetch(url, { signal: _ttyStreamCtrl.signal })
+    .then(r => {
+      const reader = r.body.getReader();
+      const decoder = new TextDecoder();
+      function read() {
+        reader.read().then(({ done, value }) => {
+          if (done) return;
+          buf += decoder.decode(value, { stream: true });
+          const parts = buf.split('\n');
+          buf = parts.pop() ?? '';
+          for (const part of parts) {
+            const s = part.trim();
+            if (!s) continue;
+            try {
+              const msg = JSON.parse(s);
+              if (msg.type === 'rx' && msg.hex) {
+                const bytes = Uint8Array.from(msg.hex.match(/.{1,2}/g) || [],
+                  b => parseInt(b, 16));
+                const text = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+                text.split(/\r?\n/).filter(l => l.trim()).forEach(l => appendHyperTerm(l));
+              } else if (msg.type === 'closed') {
+                updateSerialUI(false, 'disconnected');
+                stopTtyStream();
+              } else if (msg.type === 'error') {
+                appendHyperTerm(`[ERR] ${msg.message}`);
+              }
+            } catch { /* ignore parse errors */ }
+          }
+          read();
+        }).catch(() => {});
+      }
+      read();
+    }).catch(() => {});
+}
+
+function stopTtyStream() {
+  if (_ttyStreamCtrl) { _ttyStreamCtrl.abort(); _ttyStreamCtrl = null; }
 }
 
 async function refreshSerialStatus() {
   try {
     const data = await api('/api/serial/status');
-    const t = data.terminal || {};
+    // Handle both C# worker format (data.terminal.*) and native Linux format (data.ttys/data.open)
+    const t    = data.terminal || {};
+    const ttys = data.ttys || data.ports || t.ports || [];
 
     const portSel = $('serialPort');
-    const curPort = portSel.value || t.selectedPort || '';
-    portSel.innerHTML = (t.ports || []).map(p =>
-      `<option value="${esc(p.portName || p.PortName)}">${esc(p.displayName || p.DisplayName || p.portName || p.PortName)}</option>`
-    ).join('');
-    if (curPort) portSel.value = curPort;
+    if (portSel) {
+      const cur = portSel.value || t.selectedPort || data.session || '';
+      portSel.innerHTML = ttys.map(p => {
+        const val   = p.path || p.portName || p.PortName || p.name || String(p);
+        const label = p.manufacturer
+          ? `${val}  (${p.manufacturer})`
+          : (p.displayName || p.DisplayName || p.usbProduct || val);
+        return `<option value="${esc(val)}">${esc(label)}</option>`;
+      }).join('');
+      if (!portSel.innerHTML) portSel.innerHTML = '<option value="">-- 포트 없음 --</option>';
+      if (cur && portSel.querySelector(`option[value="${cur}"]`)) portSel.value = cur;
+    }
 
     const baudSel = $('serialBaud');
-    const curBaud = baudSel.value || String(t.selectedBaudRate || 115200);
-    baudSel.innerHTML = (t.baudRates || [9600, 19200, 38400, 57600, 115200, 230400, 921600])
-      .map(b => `<option value="${b}">${b}</option>`).join('');
-    baudSel.value = curBaud;
+    if (baudSel && !baudSel.options.length) {
+      const cur = baudSel.value || String(t.selectedBaudRate || 115200);
+      baudSel.innerHTML = (t.baudRates || [9600, 19200, 38400, 57600, 115200, 230400, 921600])
+        .map(b => `<option value="${b}">${b}</option>`).join('');
+      baudSel.value = cur;
+    }
 
-    updateSerialUI(!!t.isConnected, t.connectionStatus || (t.isConnected ? 'connected' : 'disconnected'));
+    // Native mode: data.open / data.connected; C# worker mode: t.isConnected
+    const connected = !!(data.open || data.connected || t.isConnected);
+    const statusTxt = t.connectionStatus || (connected ? `connected (${data.session || ''})` : 'disconnected');
+    updateSerialUI(connected, statusTxt);
 
+    // C# worker provides terminal output text; native uses streaming
     const out = $('serialOutput');
-    if (t.terminalOutput !== undefined) {
+    if (out && t.terminalOutput !== undefined) {
       out.textContent = t.terminalOutput || 'No terminal output.';
       out.scrollTop = out.scrollHeight;
     }
-  } catch (err) {
-    updateSerialUI(false, `offline — ${err.message}`);
-  }
+  } catch (err) { updateSerialUI(false, 'offline'); }
 }
 
 async function toggleSerial() {
   try {
     if (state.serialConnected) {
+      stopTtyStream();
       await api('/api/serial/disconnect', { method: 'POST', body: '{}' });
       toast('Serial disconnected', 'ok');
     } else {
-      const port = $('serialPort').value;
-      const baud = Number($('serialBaud').value) || 115200;
-      await api('/api/serial/connect', { method: 'POST', body: JSON.stringify({ port, baudRate: baud }) });
-      toast(`Connected: ${port} @ ${baud}bps`, 'ok');
+      const port = $('serialPort')?.value;
+      const baud = Number($('serialBaud')?.value) || 115200;
+      if (!port) { toast('포트를 먼저 선택하세요', 'warn'); return; }
+      const res = await api('/api/serial/connect', { method: 'POST',
+        body: JSON.stringify({ port, baudRate: baud, path: port }) });
+      // Start TTY stream for native Linux (no C# worker terminal output)
+      if (!res?.terminal) startTtyStream(res?.session || res?.sessionId || port);
+      toast(`연결됨: ${port} @ ${baud} bps`, 'ok');
     }
     await refreshSerialStatus();
   } catch (err) {
-    toast(`Serial error: ${err.message}`, 'bad');
+    toast(`시리얼 오류: ${err.message}`, 'bad');
     await refreshSerialStatus();
   }
 }
 
-function appendHyperTerm(text) {
-  const el = $('serialOutput');
-  if (!el) return;
-  const ts = tsNow();
-  el.textContent += `${ts}  ${text}\n`;
-  el.scrollTop = el.scrollHeight;
-}
-
 async function sendSerial() {
-  const text = $('serialInput').value;
-  if (!text.trim()) return;
+  const inp = $('serialInput');
+  if (!inp?.value.trim()) return;
+  const text = inp.value + '\r\n';
   try {
     await api('/api/serial/send', { method: 'POST', body: JSON.stringify({ text }) });
-    $('serialInput').value = '';
-    await refreshSerialStatus();
-  } catch (err) { toast(`Serial send failed: ${err.message}`, 'bad'); }
+    appendHyperTerm(`> ${inp.value}`);
+    inp.value = '';
+  } catch (err) { toast(`전송 실패: ${err.message}`, 'bad'); }
 }
 
 // ── Logs ──────────────────────────────────────────────────────────────────────
 async function loadLogs() {
   try {
     const data = await api('/api/logs');
-    $('logsBox').textContent = JSON.stringify(data, null, 2);
-  } catch (err) { $('logsBox').textContent = `Log load failed: ${err.message}`; }
+    if ($('logsBox')) $('logsBox').textContent = JSON.stringify(data, null, 2);
+  } catch (err) { if ($('logsBox')) $('logsBox').textContent = `Log load failed: ${err.message}`; }
 }
 
-// ── WebSocket (worker events) ─────────────────────────────────────────────────
+// ── WebSocket ─────────────────────────────────────────────────────────────────
 function initWebSocket() {
   const ws = new WebSocket(`ws://${location.host}`);
   ws.onmessage = ({ data }) => {
@@ -652,12 +778,11 @@ function initWebSocket() {
       if (msg.type === 'workerEvent') {
         const p = msg.payload || {};
         if (p.type === 'serialData' || p.type === 'terminal') {
-          const text = p.text || p.data || '';
-          appendHyperTerm(text);
-          appendSeqTerm(text);
+          // Route only to scenario lab terminal to avoid duplicate with polling
+          appendSeqTerm(p.text || p.data || '');
         }
       }
-    } catch { /* ignore parse errors */ }
+    } catch { /* ignore */ }
   };
   ws.onclose = () => setTimeout(initWebSocket, 3000);
 }
@@ -671,60 +796,72 @@ async function init() {
   initTocNav();
   initRegViewer();
 
-  $('startTime').textContent = new Date().toLocaleTimeString();
+  if ($('startTime')) $('startTime').textContent = new Date().toLocaleTimeString();
 
   // Packet Generator
-  $('refreshAll').addEventListener('click', refreshInterfaces);
-  $('build').addEventListener('click', previewFrame);
-  $('send').addEventListener('click', sendFrame);
+  $('refreshAll')?.addEventListener('click', refreshInterfaces);
+  $('build')?.addEventListener('click', previewFrame);
+  $('send')?.addEventListener('click', sendFrame);
   ['protocol','dstMac','srcMac','srcIp','dstIp','srcPort','dstPort','payload','vlanEnabled','vlanId','vlanPriority']
     .forEach(id => $(id)?.addEventListener('change', previewFrame));
 
   // Capture
-  $('captureRefresh').addEventListener('click', refreshCaptureStatus);
-  $('captureStart').addEventListener('click', startCapture);
-  $('captureStop').addEventListener('click', stopCapture);
-  $('captureClear').addEventListener('click', clearCapture);
-  $('captureFilter').addEventListener('input', renderCaptureRows);
+  $('captureRefresh')?.addEventListener('click', refreshCaptureStatus);
+  $('captureStart')?.addEventListener('click', startCapture);
+  $('captureStop')?.addEventListener('click', stopCapture);
+  $('captureClear')?.addEventListener('click', clearCapture);
+  $('captureFilter')?.addEventListener('input', renderCaptureRows);
+
+  // Protocol filter chips
+  document.querySelectorAll('.proto-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.proto-chip').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const f = $('captureFilter');
+      if (f) { f.value = btn.dataset.proto || ''; renderCaptureRows(); }
+    });
+  });
 
   // Scenario Lab
-  $('tcRefresh').addEventListener('click', loadTestCases);
-  $('tcAddGroup').addEventListener('click', addTcGroup);
-  $('tcAdd').addEventListener('click', addTcFromCurrent);
-  $('tcSaveCurrent').addEventListener('click', saveTcCurrent);
-  $('seqTermSend').addEventListener('click', seqTermSend);
-  $('seqTermInput').addEventListener('keydown', e => { if (e.key === 'Enter') seqTermSend(); });
-  $('clearSeqTerminal').addEventListener('click', () => { $('seqTermOutput').textContent = ''; });
+  $('tcRefresh')?.addEventListener('click', loadTestCases);
+  $('tcAddGroup')?.addEventListener('click', addTcGroup);
+  $('tcAdd')?.addEventListener('click', addTcFromCurrent);
+  $('tcSaveCurrent')?.addEventListener('click', saveTcCurrent);
+  $('seqTermSend')?.addEventListener('click', seqTermSend);
+  $('seqTermInput')?.addEventListener('keydown', e => { if (e.key === 'Enter') seqTermSend(); });
+  $('clearSeqTerminal')?.addEventListener('click', () => { if ($('seqTermOutput')) $('seqTermOutput').textContent = ''; });
 
-  // Register / FDB (Scenario Lab panel)
-  $('regStatusRefresh').addEventListener('click', refreshRegStatus);
-  $('regRead').addEventListener('click', readRegister);
-  $('regWrite').addEventListener('click', writeRegister);
-  $('fdbRead').addEventListener('click', () => fdbCall('/api/fdb/read'));
-  $('fdbWrite').addEventListener('click', () => fdbCall('/api/fdb/write'));
-  $('fdbDelete').addEventListener('click', () => fdbCall('/api/fdb/delete'));
-  $('fdbFlush').addEventListener('click', () => { if (confirm('Flush all FDB entries?')) fdbCall('/api/fdb/flush', {}); });
+  // Register / FDB (Scenario Lab)
+  $('regStatusRefresh')?.addEventListener('click', refreshRegStatus);
+  $('regRead')?.addEventListener('click', readRegister);
+  $('regWrite')?.addEventListener('click', writeRegister);
+  $('fdbRead')?.addEventListener('click', () => fdbCall('/api/fdb/read'));
+  $('fdbWrite')?.addEventListener('click', () => fdbCall('/api/fdb/write'));
+  $('fdbDelete')?.addEventListener('click', () => fdbCall('/api/fdb/delete'));
+  $('fdbFlush')?.addEventListener('click', () => { if (confirm('Flush all FDB entries?')) fdbCall('/api/fdb/flush', {}); });
 
   // HyperTerminal
-  $('serialRefresh').addEventListener('click', refreshSerialStatus);
-  $('serialConnect').addEventListener('click', toggleSerial);
-  $('serialSend').addEventListener('click', sendSerial);
-  $('serialClear').addEventListener('click', async () => {
+  $('serialRefresh')?.addEventListener('click', refreshSerialStatus);
+  $('serialConnect')?.addEventListener('click', toggleSerial);
+  $('serialSend')?.addEventListener('click', sendSerial);
+  $('serialInput')?.addEventListener('keydown', e => { if (e.key === 'Enter') sendSerial(); });
+  $('serialClear')?.addEventListener('click', async () => {
     try { await api('/api/serial/clear', { method: 'POST', body: '{}' }); } catch { /* best effort */ }
-    $('serialOutput').textContent = '';
+    if ($('serialOutput')) $('serialOutput').textContent = '';
   });
-  $('serialInput').addEventListener('keydown', e => { if (e.key === 'Enter') sendSerial(); });
 
   // Settings
-  $('refreshLogs').addEventListener('click', loadLogs);
+  $('refreshLogs')?.addEventListener('click', loadLogs);
 
   try {
     await api('/api/health');
-    await refreshInterfaces();
-    await loadLogs();
-    await refreshSerialStatus();
-    await refreshRegStatus();
-    await loadTestCases();
+    await Promise.allSettled([
+      refreshInterfaces(),
+      loadLogs(),
+      refreshSerialStatus(),
+      refreshRegStatus(),
+      loadTestCases(),
+    ]);
     startCapturePolling();
     state.serialTimer = setInterval(refreshSerialStatus, 2000);
   } catch (err) {

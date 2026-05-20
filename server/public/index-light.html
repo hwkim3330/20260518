@@ -512,769 +512,364 @@
           </section>
         </section>
 
-        <section id="hyperTerminalView" class="roleView htView">
-          <div class="htSubTabBar">
-            <button class="htSubTab active" data-htview="serialView">Serial</button>
-            <button class="htSubTab" data-htview="registerView">Register</button>
-            <button class="htSubTab" data-htview="fdbView">FDB</button>
-            <button class="htSubTab" data-htview="autoView">Auto</button>
-            <button class="htSubTab" data-htview="controlView">Control</button>
-          </div>
+        <section id="hyperTerminalView" class="roleView">
+          <div class="hyper-shell">
 
-        <section id="serialView" class="htSubView active serialViewTT">
-          <section class="workPane serialPane">
-            <div class="serialBar">
-              <select id="serialPort"><option value="">no TTY found</option></select>
-              <button id="serialRefresh" class="ghostBtn small" title="Re-scan /dev/tty*">↻</button>
-              <label class="check"><span>Baud</span>
-                <select id="serialBaud">
-                  <option>9600</option><option>19200</option><option>38400</option>
-                  <option>57600</option><option selected>115200</option><option>230400</option>
-                  <option>460800</option><option>921600</option><option>1500000</option>
-                  <option>3000000</option>
-                </select>
-              </label>
-              <label class="check"><span>Data</span>
-                <select id="serialData"><option>5</option><option>6</option><option>7</option><option selected>8</option></select>
-              </label>
-              <label class="check"><span>Parity</span>
-                <select id="serialParity"><option value="N">None</option><option value="E">Even</option><option value="O">Odd</option></select>
-              </label>
-              <label class="check"><span>Stop</span>
-                <select id="serialStop"><option selected>1</option><option>2</option></select>
-              </label>
-              <label class="check"><input id="serialFlow" type="checkbox"><span>RTS/CTS</span></label>
-              <button id="serialConnect" class="primaryAction wsStart">▶ Connect</button>
-              <button id="serialDisconnect" class="ghostBtn wsStop" disabled>■ Disconnect</button>
-              <div class="captureStats">
-                <span class="statChip"><span>rx</span><strong id="serRx">0</strong></span>
-                <span class="statChip"><span>tx</span><strong id="serTx">0</strong></span>
-                <span class="statChip" id="serState">idle</span>
-              </div>
-            </div>
-            <div class="serialPortHint" id="serialPortHint">Pick a TTY (USB serial / FTDI / CDC-ACM) and Connect.</div>
-            <pre id="serialLog" class="serialLog"></pre>
-            <div class="serialInputBar">
-              <select id="serialEol" title="Line ending sent after the input">
-                <option value="">No EOL</option>
-                <option value="\n">LF (\n)</option>
-                <option value="\r" selected>CR (\r)</option>
-                <option value="\r\n">CRLF (\r\n)</option>
-              </select>
-              <input id="serialInput" autocomplete="off" placeholder="type and press Enter to send… (or hex like \\x1b[A)" disabled>
-              <label class="check"><input id="serialEcho" type="checkbox" checked><span>Local echo</span></label>
-              <label class="check"><input id="serialHex" type="checkbox"><span>Hex view</span></label>
-              <button id="serialClear" class="ghostBtn small">Clear</button>
-              <button id="serialBreak" class="ghostBtn small" title="Send a serial break" disabled>BRK</button>
-            </div>
-            <!-- ── Serial Macro Buttons ──────────────────────────────────── -->
-            <div class="serialMacroBar" id="serialMacroBar">
-              <span class="serialMacroLabel">Macros:</span>
-              <div class="serialMacroBtns" id="serialMacroBtns"></div>
-              <button id="serialMacroManage" class="ghostBtn small" title="Add / remove macro buttons">⚙ Edit</button>
-            </div>
-            <div id="serialMacroPanel" class="serialMacroPanel hidden">
-              <div class="serialMacroForm">
-                <input id="macroLabel" placeholder="Button label" autocomplete="off" style="width:95px">
-                <input id="macroText" placeholder="Text to send (\\r = CR, \\n = LF)" autocomplete="off" style="flex:1;min-width:160px">
-                <select id="macroEolSel" title="EOL appended after text">
-                  <option value="">No EOL</option>
-                  <option value="\r\n">CRLF</option>
-                  <option value="\r" selected>CR</option>
-                  <option value="\n">LF</option>
-                </select>
-                <button id="macroAddBtn" class="primaryAction" style="min-height:28px;padding:0 12px;font-size:.82rem;">+ Add</button>
-              </div>
-            </div>
-          </section>
-        </section>
-
-        <section id="controlView" class="htSubView htControlView">
-          <section class="workPane controlPane controlPaneFull">
-            <div class="pairCard" id="pairCard">
-              <div class="pairSide">
-                <span class="pairTag">SENDER</span>
-                <strong id="ctrlSenderName">-</strong>
-                <code class="mac" id="ctrlSenderMac">--</code>
-                <small id="ctrlSenderIp">-</small>
-                <small id="ctrlSenderUrl" class="muted">-</small>
-              </div>
-              <div class="pairFlow">→</div>
-              <div class="pairSide">
-                <span class="pairTag receiverTag">RECEIVER</span>
-                <strong id="ctrlReceiverName">-</strong>
-                <code class="mac" id="ctrlReceiverMac">--</code>
-                <small id="ctrlReceiverIp">-</small>
-                <small id="ctrlReceiverUrl" class="muted">-</small>
-              </div>
-            </div>
-            <div id="pairWarning" class="pairWarning hidden">Set the Peer URL in the top link strip and Probe before running tests.</div>
-
-            <div class="backendStatusGrid" id="backendStatusGrid">
-              <div class="backendStatusCard">
-                <div class="backendStatusHead">
-                  <strong>This PC Backend</strong>
-                  <button id="backendRefresh" class="ghostBtn small">↻</button>
-                </div>
-                <div id="backendLocalStatus" class="backendStatusBody">checking...</div>
-              </div>
-              <div class="backendStatusCard">
-                <div class="backendStatusHead">
-                  <strong>Peer PC Backend</strong>
-                  <span id="backendPeerUrl" class="muted">-</span>
-                </div>
-                <div id="backendPeerStatus" class="backendStatusBody">probe peer first</div>
-              </div>
+            <!-- Toolbar -->
+            <div class="hyper-toolbar">
+              <span class="toolbar-label">PORT</span>
+              <select id="serialPort" style="width:200px;"></select>
+              <button id="serialRefresh" class="small" style="width:24px;padding:3px 0;" title="포트 새로고침">↻</button>
+              <span class="toolbar-label">BAUD</span>
+              <select id="serialBaud" style="width:80px;"></select>
+              <button id="serialConnect" class="primaryAction" style="width:80px;">연결</button>
+              <span id="serialLed" class="led-dot"></span>
+              <span id="serialState" class="serial-status-text">disconnected</span>
+              <button id="layoutToggle" class="ghostBtn" style="margin-left:auto;width:28px;padding:3px 0;" title="3분할 레이아웃으로 전환">⊞</button>
             </div>
 
-            <div class="controlPairPicker">
-              <div class="controlPairHead">
-                <div>
-                  <strong>Interface Pairs</strong>
-                  <span>같은 개수면 순서대로 1:1, 개수가 다르면 전체 조합으로 테스트</span>
-                </div>
-                <code id="controlPairMode">1 pair</code>
-              </div>
-              <div class="controlPairRows">
-                <div class="controlPairRow">
-                  <span class="controlPairLabel">Sender</span>
-                  <div class="controlIfaceChips" id="controlSenderIfaceList">— probe to load —</div>
-                  <span id="controlSenderIfaceCount" class="ifacePickerCount">0 selected</span>
-                </div>
-                <div class="controlPairRow">
-                  <span class="controlPairLabel receiverTag">Receiver</span>
-                  <div class="controlIfaceChips" id="controlReceiverIfaceList">— probe to load —</div>
-                  <span id="controlReceiverIfaceCount" class="ifacePickerCount">0 selected</span>
-                </div>
-              </div>
-            </div>
+            <!-- Content: Register Viewer + Splitter + Terminal -->
+            <div id="hyperContent" class="hyper-content">
 
-            <div class="controlTopology">
-              <div class="controlTopologyHead">
-                <strong>6-Port Switch Topology</strong>
-                <span id="controlTopologySummary">waiting for interfaces</span>
-              </div>
-              <svg id="controlTopologySvg" viewBox="0 0 920 260" role="img" aria-label="Selected Ethernet port topology"></svg>
-            </div>
+              <!-- Register Viewer -->
+              <div class="reg-viewer">
 
-            <div id="portMonitorPanel" class="portMonitorPanel">
-              <div class="portMonitorHead">
-                <strong>6-Port Switch Link Status</strong>
-                <span id="portMonitorTime" class="muted" style="font-size:.8rem;"></span>
-                <button id="portMonitorRefresh" class="ghostBtn small">↻</button>
-              </div>
-              <div id="portMonitorGrid" class="portMonitorGrid">
-                <div class="portMonitorPlaceholder">MDIO 링크 상태 읽는 중...</div>
-              </div>
-            </div>
-
-            <div class="suiteCard">
-              <div>
-                <h3>Full Lab Suite</h3>
-                <p>선택한 모든 Interface Pair에 대해 E2E, Wire Validation, Benchmark, Frame Sweep, RFC 2544를 순서대로 실행합니다.</p>
-              </div>
-              <span class="actionStatus" id="statusFullSuite">idle</span>
-              <button id="runFullSuite" class="primaryAction suiteRunBtn">Run All Experiments</button>
-            </div>
-
-            <div id="controlRunBoard" class="controlRunBoard hidden">
-              <div class="controlRunHead">
-                <strong id="controlRunTitle">Run Progress</strong>
-                <span id="controlRunSummary">idle</span>
-              </div>
-              <div id="controlRunCards" class="controlRunCards"></div>
-            </div>
-
-            <div id="controlPacketPanel" class="controlPacketPanel hidden">
-              <div class="controlPacketHead">
-                <strong>Captured Packets</strong>
-                <span id="controlPacketSummary">0 frames</span>
-              </div>
-              <div class="controlPacketViz">
-                <div>
-                  <strong>Protocol Mix</strong>
-                  <svg id="controlProtocolChart" viewBox="0 0 360 120" role="img" aria-label="Captured packet protocol distribution"></svg>
-                </div>
-                <div>
-                  <strong>Frames By Pair</strong>
-                  <svg id="controlPairChart" viewBox="0 0 360 120" role="img" aria-label="Captured packet count by interface pair"></svg>
-                </div>
-              </div>
-              <div class="controlPacketScroll">
-                <table>
-                  <thead>
-                    <tr><th>#</th><th>Pair</th><th>IF</th><th>Proto</th><th>Src</th><th>Dst</th><th>Len</th><th>Hex</th></tr>
-                  </thead>
-                  <tbody id="controlPacketRows"></tbody>
-                </table>
-              </div>
-            </div>
-
-            <!-- ── Timestamp Panel ── -->
-            <div class="simpleCard" id="timestampCard" style="margin-bottom:14px;">
-              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
-                <strong>Timestamp (PTP Clock)</strong>
-                <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-                  <span id="timestampDisplay" style="font-family:monospace;font-size:.9rem;color:var(--accent);">—</span>
-                  <button id="timestampReadBtn" class="ghostBtn small">Read</button>
-                  <button id="timestampStatusBtn" class="ghostBtn small">Status</button>
-                </div>
-              </div>
-
-              <details style="margin-top:.7rem;">
-                <summary style="cursor:pointer;font-size:.82rem;font-weight:600;color:var(--accent-strong);">Set Time</summary>
-                <div style="display:flex;flex-wrap:wrap;gap:.6rem;align-items:flex-end;margin-top:.5rem;">
-                  <label style="font-size:.8rem;display:flex;flex-direction:column;gap:.3rem;">Year<input id="tsYear" class="monoInput" type="number" value="2025" style="width:70px;"></label>
-                  <label style="font-size:.8rem;display:flex;flex-direction:column;gap:.3rem;">Month<input id="tsMonth" class="monoInput" type="number" min="1" max="12" value="1" style="width:55px;"></label>
-                  <label style="font-size:.8rem;display:flex;flex-direction:column;gap:.3rem;">Day<input id="tsDay" class="monoInput" type="number" min="1" max="31" value="1" style="width:55px;"></label>
-                  <label style="font-size:.8rem;display:flex;flex-direction:column;gap:.3rem;">Hour<input id="tsHour" class="monoInput" type="number" min="0" max="23" value="0" style="width:55px;"></label>
-                  <label style="font-size:.8rem;display:flex;flex-direction:column;gap:.3rem;">Min<input id="tsMin" class="monoInput" type="number" min="0" max="59" value="0" style="width:55px;"></label>
-                  <label style="font-size:.8rem;display:flex;flex-direction:column;gap:.3rem;">Sec<input id="tsSec" class="monoInput" type="number" min="0" max="59" value="0" style="width:55px;"></label>
-                  <button id="tsSetNowBtn" class="ghostBtn small" title="Fill with current local time">Now</button>
-                  <button id="tsSetBtn" class="primaryAction" style="min-height:28px;">Set Time</button>
-                </div>
-                <div id="tsSetResult" class="simpleResult" style="margin-top:.4rem;"></div>
-              </details>
-
-              <div id="tsStatusResult" class="simpleResult" style="margin-top:.4rem;"></div>
-            </div>
-
-            <!-- ── Counter Panel ── -->
-            <div class="simpleCard" id="counterCard" style="margin-bottom:14px;">
-              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
-                <strong>Port Counters</strong>
-                <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-                  <label style="font-size:.8rem;display:flex;align-items:center;gap:.4rem;">
-                    Port
-                    <select id="counterPort" class="monoInput" style="width:90px;">
-                      <option value="all">All</option>
-                      <option value="0">Port 0</option>
-                      <option value="1">Port 1</option>
-                      <option value="2">Port 2</option>
-                      <option value="3">Port 3</option>
-                      <option value="4">Port 4</option>
-                      <option value="5">Port 5</option>
-                    </select>
-                  </label>
-                  <button id="counterReadBtn" class="primaryAction" style="min-height:28px;">Read</button>
-                  <span id="counterStatus" class="muted" style="font-size:.8rem;"></span>
-                </div>
-              </div>
-              <div id="counterTableWrap" style="overflow-x:auto;margin-top:.6rem;">
-                <table class="captureTable" id="counterTable" style="display:none;">
-                  <thead>
-                    <tr><th>Group</th><th>Name</th><th>Address</th><th>Value (hex)</th><th>Value (dec)</th></tr>
-                  </thead>
-                  <tbody id="counterRows"></tbody>
-                </table>
-                <div id="counterEmpty" class="muted" style="font-size:.85rem;padding:4px;">카운터를 읽으려면 Read를 누르세요.</div>
-              </div>
-            </div>
-
-            <div class="actionsGrid">
-              <div class="actionCard">
-                <div class="actionHeader">
-                  <h3>Wire Validation <span class="badge wire">on the wire</span></h3>
-                  <span class="actionDesc">Runs the standard Ethernet packet suite across the two-node link: ARP, ICMP, UDP, payload patterns, frame sizes, VLAN, and PCP. Receiver capture must match transmitted frames.</span>
-                </div>
-                <div class="progressTrack" id="progReport"><div class="progressFill"></div><span class="progressLabel">0%</span></div>
-                <div class="actionFooter">
-                  <span class="actionStatus" id="statusReport">idle</span>
-                  <button id="runReport" class="primaryAction">Run</button>
-                  <a id="openReport" class="linkButton disabled" href="/reports/testcase-latest.html" target="_blank" rel="noreferrer">Open</a>
-                </div>
-              </div>
-
-              <div class="actionCard">
-                <div class="actionHeader">
-                  <h3>E2E (single profile) <span class="badge wire">on the wire</span></h3>
-                  <span class="actionDesc">Send the currently selected Sender-tab profile across the link N times, capture on peer, match by MAC. Wireshark on the sender NIC will see the burst.</span>
-                </div>
-                <div class="actionParams">
-                  <label>Burst count<input id="e2eBurst" type="number" min="1" value="5"></label>
-                  <label>Interval ms<input id="e2eInterval" type="number" min="0" value="200"></label>
-                  <label>&nbsp;<span id="e2eHint" class="hintLine">tcpdump -i $iface ether host PEER</span></label>
-                </div>
-                <div class="progressTrack" id="progE2E"><div class="progressFill"></div><span class="progressLabel">0%</span></div>
-                <div class="actionFooter">
-                  <span class="actionStatus" id="statusE2E">idle</span>
-                  <button id="runE2E" class="primaryAction">Run</button>
-                  <a id="openE2EReport" class="linkButton disabled" href="/reports/e2e-latest.html" target="_blank" rel="noreferrer">Open</a>
-                </div>
-              </div>
-
-              <div class="actionCard">
-                <div class="actionHeader">
-                  <h3>Benchmark — latency / jitter / loss <span class="badge wire">on the wire</span></h3>
-                  <span class="actionDesc">Stream timestamped UDP packets and compute throughput, p50/p95/p99 latency, jitter, loss.</span>
-                </div>
-                <div class="actionParams">
-                  <label>Count<input id="benchCount" type="number" min="10" value="500"></label>
-                  <label>Interval ms<input id="benchInterval" type="number" min="0" step="0.1" value="1"></label>
-                  <label>Payload B<input id="benchPayloadSize" type="number" min="32" value="64"></label>
-                </div>
-                <div class="progressTrack" id="progBench"><div class="progressFill"></div><span class="progressLabel">0%</span></div>
-                <div class="actionFooter">
-                  <span class="actionStatus" id="statusBench">idle</span>
-                  <button id="runBenchmark" class="primaryAction">Run</button>
-                  <a id="openBenchmark" class="linkButton" href="/reports/benchmark-latest.html" target="_blank" rel="noreferrer">Open</a>
-                </div>
-              </div>
-
-              <div class="actionCard">
-                <div class="actionHeader">
-                  <h3>Frame-size sweep <span class="badge wire">on the wire</span></h3>
-                  <span class="actionDesc">Run the benchmark across 64..1514 B and chart throughput / loss / latency / jitter.</span>
-                </div>
-                <div class="progressTrack" id="progSweep"><div class="progressFill"></div><span class="progressLabel">0%</span></div>
-                <div class="actionFooter">
-                  <span class="actionStatus" id="statusSweep">idle</span>
-                  <button id="runSweep" class="primaryAction">Run</button>
-                  <a id="openSweep" class="linkButton" href="/reports/sweep-latest.html" target="_blank" rel="noreferrer">Open</a>
-                </div>
-              </div>
-
-              <div class="actionCard">
-                <div class="actionHeader">
-                  <h3>RFC 2544 throughput <span class="badge wire">on the wire</span> <span class="badge offline">standard</span></h3>
-                  <span class="actionDesc">Binary-search the maximum loss-free frames-per-second at each frame size (64 / 128 / 256 / 512 / 1024 / 1280 / 1518). Reports loss-free fps + utilisation vs theoretical line-rate, p95 latency, jitter, plus per-iteration history.</span>
-                </div>
-                <div class="actionParams">
-                  <label>Trial s<input id="rfcTrial" type="number" min="1" max="60" value="2"></label>
-                  <label>Link Mbps<input id="rfcLink" type="number" min="10" value="1000"></label>
-                  <label>Tol. fps<input id="rfcTol" type="number" min="10" value="100"></label>
-                </div>
-                <div class="progressTrack" id="progRfc"><div class="progressFill"></div><span class="progressLabel">0%</span></div>
-                <div class="actionFooter">
-                  <span class="actionStatus" id="statusRfc">idle</span>
-                  <button id="runRfc" class="primaryAction">Run</button>
-                  <a id="openRfc" class="linkButton" href="/reports/rfc2544-latest.html" target="_blank" rel="noreferrer">Open</a>
-                </div>
-              </div>
-            </div>
-
-            <div id="benchChartPanel" class="expChartPanel hidden">
-              <div class="expChartHead"><strong>Benchmark — Throughput by Pair</strong></div>
-              <div id="benchChart" class="expChartBody"></div>
-            </div>
-            <div id="rfcChartPanel" class="expChartPanel hidden">
-              <div class="expChartHead"><strong>RFC 2544 — Utilization vs Frame Size</strong></div>
-              <div id="rfcChart" class="expChartBody"></div>
-            </div>
-            <div id="sweepChartPanel" class="expChartPanel hidden">
-              <div class="expChartHead"><strong>Frame-Size Sweep — Throughput &amp; Loss</strong></div>
-              <div id="sweepChart" class="expChartBody"></div>
-            </div>
-
-            <details class="advancedForwarding">
-              <summary class="advancedSummary">Advanced forwarding / leakage test</summary>
-            <div class="actionCard" id="simpleBidirCard" style="margin-top:10px">
-              <div class="actionHeader">
-                <h3>Simple Bidirectional Forwarding Test <span class="badge wire">on the wire</span></h3>
-                <span class="actionDesc">PC당 N개 인터페이스 · 4포트 DUT 스위치 forwarding 검증. 각 인터페이스에 Primary(송신/기대 수신) 또는 Monitor(누설 감지) 역할을 지정합니다. 인터페이스마다 별도 agent가 병렬 capture합니다.</span>
-              </div>
-
-              <div class="sbfStep">
-                <h4>① Nodes
-                  <label style="margin-left:auto; display:inline-flex; align-items:center; gap:6px; font-weight:400; font-size:12px; color:var(--muted)">
-                    <input id="sbfSinglePc" type="checkbox"> Single-PC mode (이 PC에서 송신·수신·모니터 모두)
-                  </label>
-                </h4>
-                <div id="sbfTwoPcUrls" class="grid2 overrideGrid">
-                  <label>Node A URL<input id="sbfNodeAUrl" autocomplete="off" placeholder="http://PC-A-IP:8080"></label>
-                  <label>Node B URL<input id="sbfNodeBUrl" autocomplete="off" placeholder="http://localhost:8080"></label>
-                </div>
-                <div id="sbfSinglePcUrl" style="display:none">
-                  <label>This PC URL<input id="sbfLocalUrl" autocomplete="off" readonly></label>
-                </div>
-                <div class="actionFooter" style="margin-top:8px">
-                  <button id="sbfProbe" class="secondaryAction">Probe Nodes</button>
-                  <span class="actionStatus" id="sbfProbeStatus">idle</span>
-                </div>
-              </div>
-
-              <div class="sbfStep">
-                <h4>② Interfaces
-                  <span class="sbfLegend">
-                    <span class="sbfBadge sbf-primary">Send</span> 송신 NIC
-                    <span class="sbfBadge sbf-primary">Receive</span> 기대 수신 NIC
-                    <span class="sbfBadge sbf-monitor">Monitor</span> 누설 감지 (다중)
-                  </span>
-                </h4>
-                <div id="sbfUnifiedBlock" class="sbfIfaceBlock" style="display:none">
-                  <div class="sbfIfaceHeader">This PC <small id="sbfUnifiedEcho">-</small></div>
-                  <table class="sbfIfaceTable" id="sbfUnifiedTable">
-                    <thead><tr>
-                      <th>Interface</th><th>MAC</th><th>State</th>
-                      <th style="text-align:center">Send</th>
-                      <th style="text-align:center">Receive</th>
-                      <th style="text-align:center">Monitor</th>
-                    </tr></thead>
-                    <tbody></tbody>
-                  </table>
-                  <div class="hint" style="font-size:11.5px;color:var(--muted);margin-top:4px">Send 1개 + Receive 1개 + Monitor N개. 각 캡처는 독립 agent 프로세스로 병렬 실행.</div>
-                </div>
-                <div class="sbfIfaceGrid" id="sbfTwoPcIfaces">
-                  <div class="sbfIfaceBlock">
-                    <div class="sbfIfaceHeader">Node A <small id="sbfNodeAEcho">-</small></div>
-                    <div class="row" style="gap:8px">
-                      <label><strong><span class="sbfBadge sbf-primary">Primary</span>Interface</strong><select id="sbfNodeAPrimary"></select></label>
-                      <label><strong><span class="sbfBadge sbf-monitor">Monitor 1</span></strong><select id="sbfNodeAMonitor"></select></label>
-                      <label><strong><span class="sbfBadge sbf-monitor">Monitor 2</span></strong><select id="sbfNodeAMonitor2"></select></label>
+                <!-- TOC Sidebar -->
+                <div class="reg-toc">
+                  <div class="reg-toc-scroll">
+                    <div class="toc-group">
+                      <button class="toc-head toc-active" data-sec="sysctl">● SYSTEM CONTROL</button>
+                      <button class="toc-sub" data-sec="version">VERSION</button>
+                      <button class="toc-sub" data-sec="sysport">SYSTEM / PORT</button>
+                      <button class="toc-sub" data-sec="ahb">AHB</button>
+                    </div>
+                    <div class="toc-group">
+                      <button class="toc-head" data-sec="interrupt">● INTERRUPT</button>
+                      <button class="toc-sub" data-sec="intr-ctrl">CTRL</button>
+                      <button class="toc-sub" data-sec="intr-raw">RAW STATUS</button>
+                      <button class="toc-sub" data-sec="intr-mask">MASK</button>
+                      <button class="toc-sub" data-sec="intr-sw">SW TRIGGER</button>
+                    </div>
+                    <div class="toc-group">
+                      <button class="toc-head" data-sec="timestamp">● TIMESTAMP</button>
+                      <button class="toc-sub" data-sec="ts-time">현재 시각</button>
+                      <button class="toc-sub" data-sec="ts-adj">시간 보정</button>
+                      <button class="toc-sub" data-sec="ts-clk">CLK / PPS</button>
+                    </div>
+                    <div class="toc-group">
+                      <button class="toc-head" data-sec="ledclock">● LED / CLOCK</button>
+                      <button class="toc-sub" data-sec="led-ctrl">LED CTRL</button>
+                      <button class="toc-sub" data-sec="ext-sw">EXT SWITCH</button>
+                      <button class="toc-sub" data-sec="clk-limit">CLK LIMIT</button>
+                    </div>
+                    <div class="toc-group">
+                      <button class="toc-head" data-sec="testdata">● TEST DATA</button>
+                    </div>
+                    <div class="toc-group">
+                      <button class="toc-head" data-sec="fdb">● FDB</button>
+                      <button class="toc-sub" data-sec="fdb-ctrl">CONTROL</button>
+                      <button class="toc-sub" data-sec="fdb-cmd">COMMAND</button>
+                      <button class="toc-sub" data-sec="fdb-result">RESULT</button>
+                    </div>
+                    <div class="toc-group">
+                      <button class="toc-head" data-sec="count">● COUNT</button>
+                      <button class="toc-sub" data-sec="count-rxtx">RX / TX / FBR</button>
+                    </div>
+                    <div class="toc-group">
+                      <button class="toc-head" data-sec="mdio">● MDIO</button>
+                      <button class="toc-sub" data-sec="mdio-setup">SETUP / TIME</button>
+                      <button class="toc-sub" data-sec="mdio-link">LINK STATUS</button>
+                      <button class="toc-sub" data-sec="mdio-acc">PHY ACCESS</button>
                     </div>
                   </div>
-                  <div class="sbfIfaceBlock">
-                    <div class="sbfIfaceHeader">Node B <small id="sbfNodeBEcho">-</small></div>
-                    <div class="row" style="gap:8px">
-                      <label><strong><span class="sbfBadge sbf-primary">Primary</span>Interface</strong><select id="sbfNodeBPrimary"></select></label>
-                      <label><strong><span class="sbfBadge sbf-monitor">Monitor 1</span></strong><select id="sbfNodeBMonitor"></select></label>
-                      <label><strong><span class="sbfBadge sbf-monitor">Monitor 2</span></strong><select id="sbfNodeBMonitor2"></select></label>
+                  <div class="toc-baseaddr">
+                    <label>BASE ADDR</label>
+                    <input id="regBaseAddr" class="mono" value="0x44A00000" readonly>
+                  </div>
+                </div>
+
+                <!-- Register Content Area -->
+                <div id="regContent" class="reg-content">
+
+                  <!-- SYSTEM CONTROL -->
+                  <div id="rsec-sysctl" class="rsec">
+                    <div class="rsec-head">SYSTEM CONTROL <button class="small" id="sysctlReadAll">READ ALL</button></div>
+                    <div class="rsec-grid">
+                      <div class="reg-card" id="rsec-version">
+                        <div class="reg-card-title">버전 정보 <small>VERSION_REG  0x000</small></div>
+                        <div class="field"><label>Value</label><input id="rv-version" class="mono" readonly placeholder="—"></div>
+                        <div class="row"><button class="small primary" data-rw="read" data-off-val="0x000" data-val="rv-version" data-st="rv-st-version">Read</button></div>
+                        <div class="reg-status" id="rv-st-version"></div>
+                      </div>
+                      <div class="reg-card" id="rsec-sysport">
+                        <div class="reg-card-title">시스템 설정 <small>ENABLE_REG  0x008</small></div>
+                        <div class="field"><label>Value (hex)</label><input id="rv-enable" class="mono" value="0x00000000"></div>
+                        <div class="row">
+                          <button class="small primary" data-rw="read" data-off-val="0x008" data-val="rv-enable" data-st="rv-st-enable">Read</button>
+                          <button class="small" data-rw="write" data-off-val="0x008" data-val="rv-enable" data-st="rv-st-enable">Write</button>
+                        </div>
+                        <div class="reg-status" id="rv-st-enable"></div>
+                      </div>
+                      <div class="reg-card" id="rsec-ahb">
+                        <div class="reg-card-title">AHB 인터페이스 <small>HOST_IF_CTRL  0x00C</small></div>
+                        <div class="field"><label>Value (hex)</label><input id="rv-ahb" class="mono" value="0x00000000"></div>
+                        <div class="row">
+                          <button class="small primary" data-rw="read" data-off-val="0x00C" data-val="rv-ahb" data-st="rv-st-ahb">Read</button>
+                          <button class="small" data-rw="write" data-off-val="0x00C" data-val="rv-ahb" data-st="rv-st-ahb">Write</button>
+                        </div>
+                        <div class="reg-status" id="rv-st-ahb"></div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
 
-              <div class="sbfStep">
-                <h4>③ Parameters</h4>
-                <div class="actionParams">
-                  <label>UDP src<input id="sbfUdpSrc" type="number" min="1" max="65535" value="40000"></label>
-                  <label>UDP dst<input id="sbfUdpDst" type="number" min="1" max="65535" value="50000"></label>
-                  <label>Count<input id="sbfCount" type="number" min="1" value="10"></label>
-                  <label>Interval ms<input id="sbfInterval" type="number" min="0" value="100"></label>
-                  <label>Marker<input id="sbfMarker" value="KETI_SIMPLE_FORWARD"></label>
-                  <label>Capture timeout ms<input id="sbfCaptureTimeout" type="number" min="500" value="3000"></label>
-                </div>
-              </div>
-
-              <div class="sbfStep">
-                <h4>④ Topology Preview</h4>
-                <div class="sbfTopo">
-                  <div class="sbfTopoNode">
-                    <strong>Node A</strong>
-                    <small id="sbfTopoAUrl">-</small>
-                    <div id="sbfTopoAPrimary"><span class="sbfBadge sbf-primary">Primary</span> —</div>
-                    <div id="sbfTopoAMonitors"><span class="sbfBadge sbf-monitor">Monitors</span> —</div>
+                  <!-- INTERRUPT -->
+                  <div id="rsec-interrupt" class="rsec">
+                    <div class="rsec-head">INTERRUPT <button class="small" id="interruptReadAll">READ ALL</button></div>
+                    <div class="rsec-grid">
+                      <div class="reg-card" id="rsec-intr-ctrl">
+                        <div class="reg-card-title">Interrupt Polarity <small>INTERRUPT_CTRL</small></div>
+                        <div class="field"><label>Offset</label><input id="rv-intr-ctrl-off" class="mono" value="0x010" style="width:90px;"></div>
+                        <div class="field"><label>Value</label><input id="rv-intr-ctrl" class="mono" value="0x00000000"></div>
+                        <div class="row">
+                          <button class="small primary" data-rw="read" data-off="rv-intr-ctrl-off" data-val="rv-intr-ctrl" data-st="rv-st-intr-ctrl">Read</button>
+                          <button class="small" data-rw="write" data-off="rv-intr-ctrl-off" data-val="rv-intr-ctrl" data-st="rv-st-intr-ctrl">Write</button>
+                        </div>
+                        <div class="reg-status" id="rv-st-intr-ctrl"></div>
+                      </div>
+                      <div class="reg-card" id="rsec-intr-raw">
+                        <div class="reg-card-title">RAW INTERRUPT <small>INTR_RAW</small></div>
+                        <div class="field"><label>Offset</label><input id="rv-intr-raw-off" class="mono" value="0x014" style="width:90px;"></div>
+                        <div class="field"><label>Value</label><input id="rv-intr-raw" class="mono" readonly placeholder="—"></div>
+                        <div class="row"><button class="small primary" data-rw="read" data-off="rv-intr-raw-off" data-val="rv-intr-raw" data-st="rv-st-intr-raw">Read</button></div>
+                        <div class="reg-status" id="rv-st-intr-raw"></div>
+                      </div>
+                      <div class="reg-card" id="rsec-intr-mask">
+                        <div class="reg-card-title">INTERRUPT MASK <small>INTR_MASK</small></div>
+                        <div class="field"><label>Offset</label><input id="rv-intr-mask-off" class="mono" value="0x018" style="width:90px;"></div>
+                        <div class="field"><label>Value</label><input id="rv-intr-mask" class="mono" value="0x00000000"></div>
+                        <div class="row">
+                          <button class="small primary" data-rw="read" data-off="rv-intr-mask-off" data-val="rv-intr-mask" data-st="rv-st-intr-mask">Read</button>
+                          <button class="small" data-rw="write" data-off="rv-intr-mask-off" data-val="rv-intr-mask" data-st="rv-st-intr-mask">Write</button>
+                        </div>
+                        <div class="reg-status" id="rv-st-intr-mask"></div>
+                      </div>
+                      <div class="reg-card" id="rsec-intr-sw">
+                        <div class="reg-card-title">SW INTERRUPT <small>INTR_SW</small></div>
+                        <div class="field"><label>Offset</label><input id="rv-intr-sw-off" class="mono" value="0x01C" style="width:90px;"></div>
+                        <div class="field"><label>Value</label><input id="rv-intr-sw" class="mono" value="0x00000001"></div>
+                        <div class="row">
+                          <button class="small primary" data-rw="read" data-off="rv-intr-sw-off" data-val="rv-intr-sw" data-st="rv-st-intr-sw">Read</button>
+                          <button class="small" data-rw="write" data-off="rv-intr-sw-off" data-val="rv-intr-sw" data-st="rv-st-intr-sw">Write</button>
+                        </div>
+                        <div class="reg-status" id="rv-st-intr-sw"></div>
+                      </div>
+                    </div>
                   </div>
-                  <div class="sbfTopoArrow">⇄<br><small>DUT switch</small></div>
-                  <div class="sbfTopoNode">
-                    <strong>Node B</strong>
-                    <small id="sbfTopoBUrl">-</small>
-                    <div id="sbfTopoBPrimary"><span class="sbfBadge sbf-primary">Primary</span> —</div>
-                    <div id="sbfTopoBMonitors"><span class="sbfBadge sbf-monitor">Monitors</span> —</div>
+
+                  <!-- TIMESTAMP -->
+                  <div id="rsec-timestamp" class="rsec">
+                    <div class="rsec-head">TIMESTAMP <button class="small" id="timestampReadAll">READ ALL</button></div>
+                    <div class="rsec-grid">
+                      <div class="reg-card" id="rsec-ts-time">
+                        <div class="reg-card-title">현재 시각 <small>TIMESTAMP_NS / SEC_LO</small></div>
+                        <div class="field"><label>NS offset</label><input id="rv-ts-ns-off" class="mono" value="0x020" style="width:90px;"></div>
+                        <div class="field"><label>NS</label><input id="rv-ts-ns" class="mono" readonly placeholder="—"></div>
+                        <div class="row"><button class="small primary" data-rw="read" data-off="rv-ts-ns-off" data-val="rv-ts-ns" data-st="rv-st-ts">Read NS</button></div>
+                        <div class="field" style="margin-top:6px;"><label>SEC_LO offset</label><input id="rv-ts-seclo-off" class="mono" value="0x024" style="width:90px;"></div>
+                        <div class="field"><label>SEC_LO</label><input id="rv-ts-seclo" class="mono" readonly placeholder="—"></div>
+                        <div class="row"><button class="small primary" data-rw="read" data-off="rv-ts-seclo-off" data-val="rv-ts-seclo" data-st="rv-st-ts">Read SEC_LO</button></div>
+                        <div class="reg-status" id="rv-st-ts"></div>
+                      </div>
+                      <div class="reg-card" id="rsec-ts-adj">
+                        <div class="reg-card-title">시간 보정 <small>INCDEC_0 / INCDEC_1</small></div>
+                        <div class="field"><label>Offset</label><input id="rv-ts-adj-off" class="mono" value="0x030" style="width:90px;"></div>
+                        <div class="field"><label>Value</label><input id="rv-ts-adj" class="mono" value="0x00000000"></div>
+                        <div class="row">
+                          <button class="small primary" data-rw="read" data-off="rv-ts-adj-off" data-val="rv-ts-adj" data-st="rv-st-ts-adj">Read</button>
+                          <button class="small" data-rw="write" data-off="rv-ts-adj-off" data-val="rv-ts-adj" data-st="rv-st-ts-adj">Write</button>
+                        </div>
+                        <div class="reg-status" id="rv-st-ts-adj"></div>
+                      </div>
+                      <div class="reg-card" id="rsec-ts-clk">
+                        <div class="reg-card-title">클럭 / PPS 설정 <small>CTRL_0 / CTRL_1</small></div>
+                        <div class="field"><label>Offset</label><input id="rv-ts-clk-off" class="mono" value="0x038" style="width:90px;"></div>
+                        <div class="field"><label>Value</label><input id="rv-ts-clk" class="mono" value="0x00000000"></div>
+                        <div class="row">
+                          <button class="small primary" data-rw="read" data-off="rv-ts-clk-off" data-val="rv-ts-clk" data-st="rv-st-ts-clk">Read</button>
+                          <button class="small" data-rw="write" data-off="rv-ts-clk-off" data-val="rv-ts-clk" data-st="rv-st-ts-clk">Write</button>
+                        </div>
+                        <div class="reg-status" id="rv-st-ts-clk"></div>
+                      </div>
+                    </div>
                   </div>
+
+                  <!-- LED / CLOCK -->
+                  <div id="rsec-ledclock" class="rsec">
+                    <div class="rsec-head">LED / CLOCK <button class="small" id="ledclockReadAll">READ ALL</button></div>
+                    <div class="rsec-grid">
+                      <div class="reg-card" id="rsec-led-ctrl">
+                        <div class="reg-card-title">LED CTRL <small>LED_CTRL</small></div>
+                        <div class="field"><label>Offset</label><input id="rv-led-ctrl-off" class="mono" value="0x040" style="width:90px;"></div>
+                        <div class="field"><label>Value</label><input id="rv-led-ctrl" class="mono" value="0x00000000"></div>
+                        <div class="row">
+                          <button class="small primary" data-rw="read" data-off="rv-led-ctrl-off" data-val="rv-led-ctrl" data-st="rv-st-led">Read</button>
+                          <button class="small" data-rw="write" data-off="rv-led-ctrl-off" data-val="rv-led-ctrl" data-st="rv-st-led">Write</button>
+                        </div>
+                        <div class="reg-status" id="rv-st-led"></div>
+                      </div>
+                      <div class="reg-card" id="rsec-ext-sw">
+                        <div class="reg-card-title">EXT SWITCH <small>EXT_SW_IN</small></div>
+                        <div class="field"><label>Offset</label><input id="rv-ext-sw-off" class="mono" value="0x044" style="width:90px;"></div>
+                        <div class="field"><label>Value</label><input id="rv-ext-sw" class="mono" value="0x00000000"></div>
+                        <div class="row">
+                          <button class="small primary" data-rw="read" data-off="rv-ext-sw-off" data-val="rv-ext-sw" data-st="rv-st-ext-sw">Read</button>
+                          <button class="small" data-rw="write" data-off="rv-ext-sw-off" data-val="rv-ext-sw" data-st="rv-st-ext-sw">Write</button>
+                        </div>
+                        <div class="reg-status" id="rv-st-ext-sw"></div>
+                      </div>
+                      <div class="reg-card" id="rsec-clk-limit">
+                        <div class="reg-card-title">CLK COUNT LIMIT <small>CLK_LIMIT</small></div>
+                        <div class="field"><label>Offset</label><input id="rv-clk-limit-off" class="mono" value="0x048" style="width:90px;"></div>
+                        <div class="field"><label>Value</label><input id="rv-clk-limit" class="mono" value="0x00000000"></div>
+                        <div class="row">
+                          <button class="small primary" data-rw="read" data-off="rv-clk-limit-off" data-val="rv-clk-limit" data-st="rv-st-clk-limit">Read</button>
+                          <button class="small" data-rw="write" data-off="rv-clk-limit-off" data-val="rv-clk-limit" data-st="rv-st-clk-limit">Write</button>
+                        </div>
+                        <div class="reg-status" id="rv-st-clk-limit"></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- TEST DATA -->
+                  <div id="rsec-testdata" class="rsec">
+                    <div class="rsec-head">TEST DATA</div>
+                    <div class="rsec-grid">
+                      <div class="reg-card">
+                        <div class="reg-card-title">Test Data Registers</div>
+                        <div class="field"><label>Offset</label><input id="rv-testdata-off" class="mono" value="0x100" style="width:90px;"></div>
+                        <div class="field"><label>Value</label><input id="rv-testdata" class="mono" value="0x00000000"></div>
+                        <div class="row">
+                          <button class="small primary" data-rw="read" data-off="rv-testdata-off" data-val="rv-testdata" data-st="rv-st-testdata">Read</button>
+                          <button class="small" data-rw="write" data-off="rv-testdata-off" data-val="rv-testdata" data-st="rv-st-testdata">Write</button>
+                        </div>
+                        <div class="reg-status" id="rv-st-testdata"></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- FDB -->
+                  <div id="rsec-fdb" class="rsec">
+                    <div class="rsec-head">FDB</div>
+                    <div class="rsec-grid">
+                      <div class="reg-card" id="rsec-fdb-ctrl">
+                        <div class="reg-card-title">FDB Entry Control</div>
+                        <div class="field"><label>MAC</label><input id="rv-fdbMac" class="mono" value="00:11:22:33:44:55"></div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+                          <div class="field"><label>Port</label><input id="rv-fdbPort" type="number" value="1" min="0"></div>
+                          <div class="field"><label>VLAN ID</label><input id="rv-fdbVid" type="number" value="0" min="0" max="4095"></div>
+                        </div>
+                        <div class="field check" style="margin:4px 0;">
+                          <input id="rv-fdbVlanValid" type="checkbox">
+                          <label style="margin:0;">VLAN valid</label>
+                        </div>
+                        <div class="row">
+                          <button class="small primary" id="rv-fdbRead">Read</button>
+                          <button class="small" id="rv-fdbWrite">Write</button>
+                          <button class="small danger" id="rv-fdbDelete">Delete</button>
+                          <button class="small danger" id="rv-fdbFlush">Flush All</button>
+                        </div>
+                        <div class="mini-log" id="rv-fdbResult">No FDB op yet.</div>
+                      </div>
+                      <div class="reg-card" id="rsec-fdb-cmd">
+                        <div class="reg-card-title">FDB RAW CMD <small>FDB_CMD</small></div>
+                        <div class="field"><label>Offset</label><input id="rv-fdb-cmd-off" class="mono" value="0x200" style="width:90px;"></div>
+                        <div class="field"><label>Value</label><input id="rv-fdb-cmd-v" class="mono" value="0x00000000"></div>
+                        <div class="row">
+                          <button class="small primary" data-rw="read" data-off="rv-fdb-cmd-off" data-val="rv-fdb-cmd-v" data-st="rv-st-fdb-cmd">Read</button>
+                          <button class="small" data-rw="write" data-off="rv-fdb-cmd-off" data-val="rv-fdb-cmd-v" data-st="rv-st-fdb-cmd">Write</button>
+                        </div>
+                        <div class="reg-status" id="rv-st-fdb-cmd"></div>
+                      </div>
+                      <div class="reg-card" id="rsec-fdb-result">
+                        <div class="reg-card-title">FDB RESULT <small>FDB_RESULT</small></div>
+                        <div class="field"><label>Offset</label><input id="rv-fdb-res-off" class="mono" value="0x204" style="width:90px;"></div>
+                        <div class="field"><label>Value</label><input id="rv-fdb-res-v" class="mono" readonly placeholder="—"></div>
+                        <div class="row"><button class="small primary" data-rw="read" data-off="rv-fdb-res-off" data-val="rv-fdb-res-v" data-st="rv-st-fdb-res">Read</button></div>
+                        <div class="reg-status" id="rv-st-fdb-res"></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- COUNT -->
+                  <div id="rsec-count" class="rsec">
+                    <div class="rsec-head">COUNT <button class="small" id="countReadAll">READ ALL</button></div>
+                    <div class="rsec-grid">
+                      <div class="reg-card" id="rsec-count-rxtx">
+                        <div class="reg-card-title">RX / TX / FBR Counters</div>
+                        <div class="field"><label>Offset</label><input id="rv-count-off" class="mono" value="0x300" style="width:90px;"></div>
+                        <div class="field"><label>Value</label><input id="rv-count-v" class="mono" readonly placeholder="—"></div>
+                        <div class="row"><button class="small primary" data-rw="read" data-off="rv-count-off" data-val="rv-count-v" data-st="rv-st-count">Read</button></div>
+                        <div class="reg-status" id="rv-st-count"></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- MDIO -->
+                  <div id="rsec-mdio" class="rsec">
+                    <div class="rsec-head">MDIO</div>
+                    <div class="rsec-grid">
+                      <div class="reg-card" id="rsec-mdio-setup">
+                        <div class="reg-card-title">MDIO SETUP / TIME</div>
+                        <div class="field"><label>Offset</label><input id="rv-mdio-setup-off" class="mono" value="0x400" style="width:90px;"></div>
+                        <div class="field"><label>Value</label><input id="rv-mdio-setup" class="mono" value="0x00000000"></div>
+                        <div class="row">
+                          <button class="small primary" data-rw="read" data-off="rv-mdio-setup-off" data-val="rv-mdio-setup" data-st="rv-st-mdio">Read</button>
+                          <button class="small" data-rw="write" data-off="rv-mdio-setup-off" data-val="rv-mdio-setup" data-st="rv-st-mdio">Write</button>
+                        </div>
+                        <div class="reg-status" id="rv-st-mdio"></div>
+                      </div>
+                      <div class="reg-card" id="rsec-mdio-link">
+                        <div class="reg-card-title">LINK STATUS</div>
+                        <div class="field"><label>Offset</label><input id="rv-mdio-link-off" class="mono" value="0x404" style="width:90px;"></div>
+                        <div class="field"><label>Value</label><input id="rv-mdio-link-v" class="mono" readonly placeholder="—"></div>
+                        <div class="row"><button class="small primary" data-rw="read" data-off="rv-mdio-link-off" data-val="rv-mdio-link-v" data-st="rv-st-mdio-link">Read</button></div>
+                        <div class="reg-status" id="rv-st-mdio-link"></div>
+                      </div>
+                      <div class="reg-card" id="rsec-mdio-acc">
+                        <div class="reg-card-title">PHY ACCESS</div>
+                        <div class="field"><label>Offset</label><input id="rv-mdio-acc-off" class="mono" value="0x408" style="width:90px;"></div>
+                        <div class="field"><label>Value</label><input id="rv-mdio-acc-v" class="mono" value="0x00000000"></div>
+                        <div class="row">
+                          <button class="small primary" data-rw="read" data-off="rv-mdio-acc-off" data-val="rv-mdio-acc-v" data-st="rv-st-mdio-acc">Read</button>
+                          <button class="small" data-rw="write" data-off="rv-mdio-acc-off" data-val="rv-mdio-acc-v" data-st="rv-st-mdio-acc">Write</button>
+                        </div>
+                        <div class="reg-status" id="rv-st-mdio-acc"></div>
+                      </div>
+                    </div>
+                  </div>
+
+                </div><!-- #regContent -->
+              </div><!-- .reg-viewer -->
+
+              <!-- Draggable splitter -->
+              <div id="hyperSplitter" class="hyper-splitter"></div>
+
+              <!-- Terminal -->
+              <div class="hyper-terminal">
+                <div class="panel-header">
+                  <h2>TERMINAL</h2>
+                  <button id="serialClear" class="small">Clear</button>
+                </div>
+                <div id="serialOutput" class="terminal-output">No terminal output.</div>
+                <div class="terminal-input">
+                  <span>&gt;</span>
+                  <input id="serialInput" placeholder="Type command and press Enter">
+                  <button id="serialSend" class="primaryAction" style="min-width:60px;">전송</button>
                 </div>
               </div>
 
-              <div class="progressTrack" id="progSimpleBidir"><div class="progressFill"></div><span class="progressLabel">0%</span></div>
-              <div class="actionFooter">
-                <span class="actionStatus" id="statusSimpleBidir">idle</span>
-                <button id="sbfRunAtoB" class="primaryAction">▶ Run A to B</button>
-                <button id="sbfRunBtoA" class="primaryAction">▶ Run B to A</button>
-                <button id="sbfRunBoth" class="primaryAction">▶ Run Both</button>
-                <a id="sbfOpenReport" class="linkButton disabled" href="/reports/simple-bidir-forward-latest.html" target="_blank" rel="noreferrer">Open Report</a>
-                <a id="sbfOpenJson" class="linkButton disabled" href="/reports/simple-bidir-forward-latest.json" target="_blank" rel="noreferrer">Open JSON</a>
-              </div>
-              <div id="sbfSimpleChartWrap" class="expChartPanel hidden" style="margin-top:12px">
-                <div class="expChartHead"><strong>Test Result — Sent vs Matched</strong></div>
-                <div id="sbfSimpleChart" class="expChartBody"></div>
-              </div>
-              <div id="sbfResult" class="sbfResult hidden"></div>
-            </div>
-            </details>
-
-            <details class="advanced">
-              <summary class="advancedSummary">Manual override (sender / receiver URL + interface)</summary>
-              <div class="grid2 overrideGrid">
-                <label>Sender Node URL<input id="senderNodeUrl" autocomplete="off"></label>
-                <label>Sender Interface<select id="senderNodeInterface"></select></label>
-                <label>Receiver Node URL<input id="receiverNodeUrl" autocomplete="off"></label>
-                <label>Receiver Interface<select id="receiverNodeInterface"></select></label>
-              </div>
-            </details>
-            <!-- Hidden legacy holders kept so existing JS references remain valid -->
-            <div class="nodeGrid hidden" id="nodeGrid"></div>
-            <div class="reportSummary hidden" id="reportSummary"></div>
-            <table class="hidden"><tbody id="reportRows"></tbody></table>
-          </section>
-        </section>
-
-        <!-- ── Register View ─────────────────────────────────── -->
-        <section id="registerView" class="htSubView">
-          <section class="workPane">
-            <div class="sectionTitle">Register</div>
-            <div id="regStatus" class="muted" style="font-size:.85rem;">상태 불러오는 중...</div>
-
-            <!-- ── System Control Panel ── -->
-            <div class="simpleCard sysCtrlCard">
-              <div class="sysCtrlHead">
-                <strong>System Control</strong>
-                <div class="sysCtrlHeadRight">
-                  <label style="font-size:.8rem;display:flex;align-items:center;gap:.5rem;">
-                    Base Address
-                    <input id="regBaseAddress" class="monoInput" value="0x44A00000" style="width:130px;" autocomplete="off">
-                  </label>
-                  <button id="regReadAllBtn" class="primaryAction sysCtrlReadAll">Read All</button>
-                  <button id="regLoadDefaultsBtn" class="ghostBtn">Load Defaults</button>
-                </div>
-              </div>
-              <div id="regVersionDisplay" class="sysCtrlVersion">—</div>
-
-              <!-- Port Enable -->
-              <div class="sysCtrlSection">
-                <div class="sysCtrlSectionLabel">Port Enable</div>
-                <div class="sysCtrlPortRow">
-                  <label class="sysCtrlCheck"><input id="regP0" type="checkbox" checked><span>P0</span></label>
-                  <label class="sysCtrlCheck"><input id="regP1" type="checkbox" checked><span>P1</span></label>
-                  <label class="sysCtrlCheck"><input id="regP2" type="checkbox" checked><span>P2</span></label>
-                  <label class="sysCtrlCheck"><input id="regP3" type="checkbox" checked><span>P3</span></label>
-                  <label class="sysCtrlCheck"><input id="regP4" type="checkbox" checked><span>P4</span></label>
-                  <label class="sysCtrlCheck"><input id="regP5" type="checkbox" checked><span>P5</span></label>
-                  <label class="sysCtrlCheck"><input id="regP6" type="checkbox" checked><span>P6</span></label>
-                  <label class="sysCtrlCheck"><input id="regP7" type="checkbox" checked><span>P7</span></label>
-                  <span class="sysCtrlSep"></span>
-                  <label class="sysCtrlCheck sysCtrlCheckTsgw"><input id="regTsgwEnable" type="checkbox" checked><span>TSGW Enable</span></label>
-                  <button id="regApplyEnableBtn" class="ghostBtn sysCtrlApplyBtn">Apply Enable</button>
-                </div>
-              </div>
-
-              <!-- AHB Wait -->
-              <div class="sysCtrlSection">
-                <div class="sysCtrlSectionLabel">AHB Host I/F</div>
-                <div class="sysCtrlAhbRow">
-                  <label class="sysCtrlNumLabel">WR Wait (0–15)
-                    <input id="regAhbWrWait" class="monoInput" type="number" min="0" max="15" value="15" style="width:70px;">
-                  </label>
-                  <label class="sysCtrlNumLabel">RD Wait (0–15)
-                    <input id="regAhbRdWait" class="monoInput" type="number" min="0" max="15" value="15" style="width:70px;">
-                  </label>
-                  <button id="regApplyAhbBtn" class="ghostBtn sysCtrlApplyBtn">Apply AHB</button>
-                </div>
-              </div>
-
-              <div id="regSysCtrlStatus" class="sysCtrlStatus"></div>
-            </div>
-
-            <!-- ── Register Read / Write ── -->
-            <div class="simpleCardRow">
-              <!-- Read -->
-              <div class="simpleCard">
-                <strong>Register Read</strong>
-                <label style="font-size:.8rem;display:flex;flex-direction:column;gap:.4rem;">
-                  Offset <small class="muted">(hex: 0x0010 또는 dec: 16)</small>
-                  <input id="regReadOffset" class="monoInput" placeholder="0x0000" autocomplete="off">
-                </label>
-                <div class="simpleCardActions">
-                  <button id="regReadBtn" class="primaryAction">Read</button>
-                </div>
-                <div id="regReadResult" class="simpleResult" style="color:var(--accent);"></div>
-              </div>
-
-              <!-- Write -->
-              <div class="simpleCard">
-                <strong>Register Write</strong>
-                <label style="font-size:.8rem;display:flex;flex-direction:column;gap:.4rem;">
-                  Offset <small class="muted">(hex or dec)</small>
-                  <input id="regWriteOffset" class="monoInput" placeholder="0x0000" autocomplete="off">
-                </label>
-                <label style="font-size:.8rem;display:flex;flex-direction:column;gap:.4rem;">
-                  Value <small class="muted">(hex or dec)</small>
-                  <input id="regWriteValue" class="monoInput" placeholder="0x00000000" autocomplete="off">
-                </label>
-                <div class="simpleCardActions">
-                  <button id="regWriteBtn" class="primaryAction">Write</button>
-                </div>
-                <div id="regWriteResult" class="simpleResult"></div>
-              </div>
-            </div>
-            <!-- ── MDIO / PHY ── -->
-            <div class="simpleCard" id="mdioCard">
-              <strong>MDIO / PHY Access</strong>
-
-              <!-- PHY Read / Write -->
-              <div class="simpleCardRow" style="align-items:flex-end;gap:.8rem;flex-wrap:wrap;">
-                <label style="font-size:.8rem;display:flex;flex-direction:column;gap:.4rem;">
-                  Port <small class="muted">(0–5)</small>
-                  <select id="mdioPort" class="monoInput" style="width:80px;">
-                    <option value="0">Port 0</option>
-                    <option value="1">Port 1</option>
-                    <option value="2">Port 2</option>
-                    <option value="3">Port 3</option>
-                    <option value="4">Port 4</option>
-                    <option value="5">Port 5</option>
-                  </select>
-                </label>
-                <label style="font-size:.8rem;display:flex;flex-direction:column;gap:.4rem;">
-                  PHY Addr <small class="muted">(hex)</small>
-                  <input id="mdioPhyAddr" class="monoInput" value="0x00" style="width:80px;" autocomplete="off">
-                </label>
-                <label style="font-size:.8rem;display:flex;flex-direction:column;gap:.4rem;">
-                  Reg Addr <small class="muted">(hex)</small>
-                  <input id="mdioRegAddr" class="monoInput" value="0x01" style="width:80px;" autocomplete="off">
-                </label>
-                <label style="font-size:.8rem;display:flex;flex-direction:column;gap:.4rem;">
-                  Write Value <small class="muted">(hex)</small>
-                  <input id="mdioWriteValue" class="monoInput" placeholder="0x0000" style="width:100px;" autocomplete="off">
-                </label>
-                <div class="simpleCardActions" style="flex-direction:column;gap:.4rem;">
-                  <button id="mdioReadBtn" class="primaryAction">PHY Read</button>
-                  <button id="mdioWriteBtn" class="primaryAction">PHY Write</button>
-                </div>
-              </div>
-              <div id="mdioAccResult" class="simpleResult" style="color:var(--accent);"></div>
-
-              <!-- Link Status -->
-              <div style="display:flex;align-items:center;gap:.8rem;margin-top:.6rem;flex-wrap:wrap;">
-                <button id="mdioLinkStatusBtn" class="ghostBtn">Read Link Status (all ports)</button>
-                <div id="mdioLinkGrid" style="display:flex;gap:.5rem;flex-wrap:wrap;"></div>
-              </div>
-
-              <!-- MDIO Setup -->
-              <details style="margin-top:.8rem;">
-                <summary style="cursor:pointer;font-size:.82rem;font-weight:600;color:var(--accent-strong);">MDIO Setup (clock / enable)</summary>
-                <div style="margin-top:.6rem;display:flex;flex-wrap:wrap;gap:.8rem;align-items:flex-end;">
-                  <label class="sysCtrlCheck"><input id="mdioSetupEnable" type="checkbox" checked><span>Enable</span></label>
-                  <label class="sysCtrlCheck"><input id="mdioSetupPreDisable" type="checkbox"><span>PreDisable</span></label>
-                  <label class="sysCtrlCheck"><input id="mdioSetupIntrEnable" type="checkbox"><span>IntEnable</span></label>
-                  <label style="font-size:.8rem;display:flex;flex-direction:column;gap:.4rem;">
-                    Target MHz
-                    <input id="mdioTargetMhz" class="monoInput" value="2.5" style="width:80px;" type="number" min="0.1" step="0.1" max="12.5">
-                  </label>
-                  <button id="mdioSetupApplyBtn" class="ghostBtn sysCtrlApplyBtn">Apply Setup</button>
-                </div>
-                <div id="mdioSetupResult" class="simpleResult" style="margin-top:.4rem;"></div>
-              </details>
-            </div>
-
-          </section>
-        </section>
-
-        <!-- ── FDB View ──────────────────────────────────────── -->
-        <section id="fdbView" class="htSubView">
-          <section class="workPane">
-            <div class="sectionTitle">FDB (Forwarding Database)</div>
-
-            <!-- ── FDB Control Panel ── -->
-            <div class="simpleCard fdbCtrlCard">
-              <div class="sysCtrlHead">
-                <strong>FDB Control</strong>
-                <div class="sysCtrlHeadRight">
-                  <button id="fdbReadStatusBtn" class="primaryAction sysCtrlReadAll">Read Status</button>
-                  <button id="fdbLoadDefaultsBtn" class="ghostBtn">FDB Load Defaults</button>
-                </div>
-              </div>
-              <div id="fdbVersionDisplay" class="sysCtrlVersion">—</div>
-
-              <!-- Enable flags -->
-              <div class="sysCtrlSection">
-                <div class="sysCtrlSectionLabel">Enable Flags (0xA0C)</div>
-                <div class="sysCtrlPortRow">
-                  <label class="sysCtrlCheck"><input id="fdbAgeScanEnable" type="checkbox"><span>AgeScan [bit4]</span></label>
-                  <label class="sysCtrlCheck"><input id="fdbLearningEnable" type="checkbox"><span>Learning [bit1]</span></label>
-                  <label class="sysCtrlCheck"><input id="fdbLookupEnable" type="checkbox"><span>Lookup [bit0]</span></label>
-                  <button id="fdbApplyEnableBtn" class="ghostBtn sysCtrlApplyBtn">Apply Enable</button>
-                </div>
-              </div>
-
-              <!-- Age / Threshold -->
-              <div class="sysCtrlSection">
-                <div class="sysCtrlSectionLabel">Aging</div>
-                <div class="sysCtrlAhbRow">
-                  <label class="sysCtrlNumLabel">Age Period (ns) <small class="muted">0xA10</small>
-                    <input id="fdbAgePeriodNs" class="monoInput" type="number" min="0" value="0" style="width:120px;">
-                  </label>
-                  <label class="sysCtrlNumLabel">Aging Threshold (×100ms) <small class="muted">0xA14</small>
-                    <input id="fdbAgingThr" class="monoInput" type="number" min="0" value="0" style="width:120px;">
-                  </label>
-                  <button id="fdbApplyAgingBtn" class="ghostBtn sysCtrlApplyBtn">Apply Aging</button>
-                </div>
-              </div>
-
-              <div id="fdbCtrlStatus" class="sysCtrlStatus"></div>
-            </div>
-
-            <!-- ── FDB Bucket Read ── -->
-            <div class="simpleCard">
-              <strong>Bucket Read (CMD=0x13)</strong>
-              <div class="sysCtrlAhbRow" style="align-items:flex-end;">
-                <label class="sysCtrlNumLabel">Bucket (0–1023)
-                  <input id="fdbBucketNum" class="monoInput" type="number" min="0" max="1023" value="0" style="width:100px;">
-                </label>
-                <label class="sysCtrlNumLabel">Slot bitmap (0x1–0xF)
-                  <input id="fdbSlotBitmap" class="monoInput" placeholder="0x1" style="width:80px;" autocomplete="off">
-                </label>
-                <button id="fdbBucketReadBtn" class="primaryAction">Bucket Read</button>
-              </div>
-              <div id="fdbBucketResult" class="simpleResult">버킷 읽기 결과가 여기 표시됩니다.</div>
-            </div>
-
-            <!-- ── Hash Read / Write / Delete / Flush ── -->
-            <div class="simpleCard">
-              <strong>Hash Lookup (MAC + VLAN)</strong>
-              <div class="simpleCardRow cols3" style="align-items:end;">
-                <label style="font-size:.8rem;display:flex;flex-direction:column;gap:.4rem;">
-                  MAC Address
-                  <input id="fdbMac" class="monoInput" placeholder="AA:BB:CC:DD:EE:FF" autocomplete="off">
-                </label>
-                <label style="font-size:.8rem;display:flex;flex-direction:column;gap:.4rem;">
-                  VLAN ID
-                  <input id="fdbVlanId" class="monoInput" placeholder="0" type="number" min="0" max="4095">
-                </label>
-                <label style="font-size:.8rem;display:flex;align-items:center;gap:.4rem;padding-top:1.2rem;">
-                  <input id="fdbVlanValid" type="checkbox"> VLAN 유효
-                </label>
-              </div>
-              <label style="font-size:.8rem;display:flex;flex-direction:column;gap:.4rem;max-width:120px;">
-                Port <small class="muted">(write 전용)</small>
-                <input id="fdbPort" class="monoInput" placeholder="1" type="number" min="0" max="511">
-              </label>
-              <div class="simpleCardActions">
-                <button id="fdbReadBtn"   class="primaryAction">Hash Read</button>
-                <button id="fdbWriteBtn"  class="primaryAction">Hash Write</button>
-                <button id="fdbDeleteBtn" class="primaryAction dangerAction">Hash Delete</button>
-                <button id="fdbFlushBtn"  class="primaryAction dangerAction">Flush All</button>
-              </div>
-            </div>
-
-            <div id="fdbResult" class="simpleResult">결과가 여기 표시됩니다.</div>
-          </section>
-        </section>
-
-        <!-- ── Auto View ─────────────────────────────────────── -->
-        <section id="autoView" class="htSubView">
-          <section class="workPane">
-            <div class="sectionTitle">Automation Test</div>
-
-            <div class="simpleCard">
-              <strong>테스트 실행</strong>
-              <div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;">
-                <select id="autoTestSelect" style="flex:1;min-width:180px;">
-                  <option value="tx-sanity">TX Sanity — 기본 송신 검증</option>
-                  <option value="fdb-test">FDB Test — MAC 주소 학습 검증</option>
-                  <option value="flood-check">Flood Check — 미학습 MAC 플러딩 확인</option>
-                </select>
-                <button id="autoRunBtn" class="primaryAction">▶ Run</button>
-                <span id="autoStatusBadge" class="statusBadge">idle</span>
-              </div>
-              <div id="autoStatusText" class="muted" style="font-size:.85rem;min-height:1.2rem;"></div>
-            </div>
-
-            <div style="overflow-x:auto;">
-              <table class="captureTable">
-                <thead>
-                  <tr>
-                    <th>Step</th><th>Type</th><th>Mode</th><th>Port</th>
-                    <th>TX</th><th>P1</th><th>P2</th><th>P3</th>
-                    <th>Result</th><th style="min-width:120px;">Reason</th>
-                  </tr>
-                </thead>
-                <tbody id="autoResultRows">
-                  <tr><td colspan="10" style="text-align:center;color:var(--muted);padding:1.5rem;">테스트를 실행하면 결과가 표시됩니다.</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </section>
-        </section>
-
+            </div><!-- #hyperContent -->
+          </div><!-- .hyper-shell -->
         </section><!-- /#hyperTerminalView -->
 
         <section id="labView" class="roleView">
