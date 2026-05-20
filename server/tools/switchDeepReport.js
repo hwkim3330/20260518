@@ -10,8 +10,11 @@ const trials = Number(process.env.TRIALS || 5);
 const measurementRetries = Number(process.env.MEASUREMENT_RETRIES || 3);
 const qualityEnabled = process.env.QUALITY !== '0';
 const mappingEnabled = process.env.MAPPING !== '0';
+const ceilingEnabled = process.env.CEILING !== '0';
 const sweepSizes = (process.env.SWEEP_SIZES || '64,128,256,512,1024,1500').split(',').map(Number).filter(Boolean);
 const burstIntervals = (process.env.BURST_INTERVALS || '150,50,10,0').split(',').map(Number).filter((v) => Number.isFinite(v));
+const ceilingCounts = (process.env.CEILING_COUNTS || '5,10,20,50').split(',').map(Number).filter(Boolean);
+const ceilingIntervals = (process.env.CEILING_INTERVALS || '50,10,0').split(',').map(Number).filter((v) => Number.isFinite(v));
 
 const directions = [
   { name: 'Local enp1s0f1 -> Peer 이더넷 2', srcBase: local, dstBase: peer, srcIf: 'enp1s0f1', srcMac: 'a0:36:9f:a8:e4:a9', srcIp: '169.254.141.14', dstIf: '이더넷 2', dstMac: 'c8:4d:44:20:40:5b', dstIp: '169.254.23.158' },
@@ -182,6 +185,27 @@ async function runReachabilityMatrix() {
   };
 }
 
+async function runCaptureCeiling() {
+  if (!ceilingEnabled) return { enabled: false, rows: [] };
+  const d = directions[2]; // peer -> local uses the local Node capture path, which is the most observable path here.
+  const rows = [];
+  for (const intervalMs of ceilingIntervals) {
+    for (const frameCount of ceilingCounts) {
+      const result = await runAttempt(d, frameCount, 1, {
+        markerPrefix: 'KETI_CEILING',
+        count: frameCount,
+        intervalMs,
+        targetFrameLength: 256,
+        payloadSize: 96,
+        waitMs: Math.max(2200, frameCount * Math.max(intervalMs, 1) + 1800)
+      });
+      rows.push({ intervalMs, frameCount, ...result });
+      console.log(`${d.name} ceiling ${frameCount}@${intervalMs}ms: ${result.matched}/${result.expected} elapsed=${result.elapsedMs}ms rows=${result.captureRows} err=${result.error}`);
+    }
+  }
+  return { enabled: true, direction: d.name, counts: ceilingCounts, intervals: ceilingIntervals, rows };
+}
+
 async function runOne(d, trial) {
   let best = null;
   for (let attempt = 1; attempt <= measurementRetries; attempt += 1) {
@@ -246,7 +270,8 @@ function writeReportIndex(reportsDir) {
       const total = (data.summary || []).length;
       const quality = data.quality?.enabled ? 'quality' : '';
       const matrix = data.mapping?.enabled ? 'matrix' : '';
-      return `<tr><td>${esc(data.generatedAt || jsonName)}</td><td><a href="./${esc(htmlName)}">${esc(htmlName)}</a></td><td>${pass}/${total}</td><td>${esc([quality, matrix].filter(Boolean).join(' + ') || '-')}</td></tr>`;
+      const ceiling = data.ceiling?.enabled ? 'ceiling' : '';
+      return `<tr><td>${esc(data.generatedAt || jsonName)}</td><td><a href="./${esc(htmlName)}">${esc(htmlName)}</a></td><td>${pass}/${total}</td><td>${esc([quality, matrix, ceiling].filter(Boolean).join(' + ') || '-')}</td></tr>`;
     }).join('');
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>Switch Report Index</title><style>
     body{margin:24px;font:14px/1.45 ui-sans-serif,system-ui;background:#f8fafc;color:#17202a}.wrap{max-width:980px;margin:auto}
@@ -297,6 +322,7 @@ function writeReport(report) {
   const setupRetries = allTrials.reduce((sum, t) => sum + Math.max(0, (t.captureStartAttempts || 1) - 1), 0);
   const quality = report.quality || { enabled: false, frameSizes: [], bursts: [] };
   const mapping = report.mapping || { enabled: false, rows: [] };
+  const ceiling = report.ceiling || { enabled: false, rows: [] };
   const sizeLabels = [...new Set((quality.frameSizes || []).map((r) => r.size))].sort((a, b) => a - b).map(String);
   const qualityDirLabels = [...new Set((quality.frameSizes || []).map((r) => r.direction))];
   const sizeDatasets = qualityDirLabels.map((direction, index) => ({
@@ -336,6 +362,10 @@ function writeReport(report) {
     const ok = row && row.matched >= row.expected && !row.error;
     return `<td><span class="matrixCell ${ok ? 'ok' : 'fail'}">${row ? `${row.matched}/${row.expected}` : '-'}</span></td>`;
   }).join('')}</tr>`).join('')}</tbody></table><p class="muted">This matrix checks L2 reachability for every selected local source to peer destination combination. It is not a cable tracer; a learning switch may forward multiple valid combinations.</p></div>` : '';
+  const ceilingLabels = (ceiling.rows || []).map((r) => `${r.frameCount}@${r.intervalMs}ms`);
+  const ceilingMatch = (ceiling.rows || []).map((r) => Number((100 * r.matched / Math.max(1, r.expected)).toFixed(1)));
+  const ceilingRows = (ceiling.rows || []).map((r) => r.captureRows);
+  const ceilingTable = ceiling.enabled ? `<div class="matrix"><h3>Capture Ceiling Sweep</h3><p class="muted">Direction: ${esc(ceiling.direction)}. This estimates the current app/worker capture pipeline limit, not certified 1GbE line-rate.</p><canvas id="ceilingChart"></canvas></div>` : '';
   const topologyPairs = [
     {
       port: 'P0-P1',
@@ -452,6 +482,7 @@ function writeReport(report) {
       <div class="chart"><h3>Quality Scope</h3><p class="muted">Frame sizes: ${esc(sizeLabels.join(', '))} bytes. Burst intervals: ${esc(intervalLabels.join(', '))} ms. Quality sweep runs on ${esc((quality.directions || []).join(' / '))} by default to keep runtime bounded.</p></div>
     </div>` : ''}
     ${matrixTable}
+    ${ceilingTable}
     <div class="heatmap"><h3>Trial Stability Heatmap</h3>${heatmap}</div>
     <table><thead><tr><th>Direction</th><th>Verdict</th><th>Matched</th><th>RX</th><th>API Errors</th><th>Trials</th></tr></thead><tbody>${rows}</tbody></table>
     <p class="muted">Generated artifact: <code>/reports/switch-deep-latest.html</code> and <code>/reports/switch-deep-latest.json</code>.</p>
@@ -473,6 +504,12 @@ function writeReport(report) {
       new Chart(document.getElementById('sizeSweep'),{type:'line',data:{labels:${JSON.stringify(sizeLabels)},datasets:${JSON.stringify(sizeDatasets)}},options:{responsive:true,plugins:{legend:{position:'bottom'}},scales:{y:{min:0,max:100,title:{display:true,text:'RX %'}},x:{title:{display:true,text:'Frame bytes'}}}}});
       new Chart(document.getElementById('burstRuntime'),{type:'line',data:{labels:${JSON.stringify(intervalLabels.map((v) => `${v} ms`))},datasets:${JSON.stringify(burstRuntimeDatasets)}},options:{responsive:true,plugins:{legend:{position:'bottom'}},scales:{y:{beginAtZero:true,title:{display:true,text:'ms'}},x:{title:{display:true,text:'Send interval'}}}}});
       new Chart(document.getElementById('burstMatch'),{type:'bar',data:{labels:${JSON.stringify(intervalLabels.map((v) => `${v} ms`))},datasets:${JSON.stringify(burstMatchDatasets)}},options:{responsive:true,plugins:{legend:{position:'bottom'}},scales:{y:{min:0,max:100,title:{display:true,text:'RX %'}}}}});
+    }
+    if (${ceiling.enabled ? 'true' : 'false'}) {
+      new Chart(document.getElementById('ceilingChart'),{type:'bar',data:{labels:${JSON.stringify(ceilingLabels)},datasets:[
+        {label:'Marker RX %',data:${JSON.stringify(ceilingMatch)},backgroundColor:'#0f6f78',yAxisID:'y'},
+        {label:'Captured rows',data:${JSON.stringify(ceilingRows)},backgroundColor:'#f59e0b',yAxisID:'y1'}
+      ]},options:{responsive:true,plugins:{legend:{position:'bottom'}},scales:{y:{min:0,max:100,title:{display:true,text:'RX %'}},y1:{position:'right',beginAtZero:true,grid:{drawOnChartArea:false},title:{display:true,text:'rows'}}}}});
     }
   </script>
 </body>
@@ -496,6 +533,7 @@ function writeReport(report) {
   report.summary = summarize(results);
   report.quality = await runQualitySweep();
   report.mapping = await runReachabilityMatrix();
+  report.ceiling = await runCaptureCeiling();
   writeReport(report);
   console.log('Report: /reports/switch-deep-latest.html');
 })().catch((err) => {
