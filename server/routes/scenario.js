@@ -73,7 +73,7 @@ router.post('/testcases/add', async (req, res) => {
     if (hasWorker(req)) return res.json({ ok: true, ...(await localCmd(req, 'testcasesadd', req.body, 5000) || {}) });
     const data  = tcLoad(req);
     const grpIdx = req.body?.groupIndex ?? 0;
-    const tc    = { id: crypto.randomUUID(), name: req.body?.name || 'Test', steps: [] };
+    const tc    = { id: crypto.randomUUID(), name: req.body?.name || 'Test', steps: req.body?.steps || [] };
     if (data[grpIdx]) {
       if (!data[grpIdx].cases) data[grpIdx].cases = [];
       data[grpIdx].cases.push(tc);
@@ -92,7 +92,16 @@ router.post('/testcases/select', async (req, res) => {
 
 router.post('/testcases/save-current', async (req, res) => {
   try {
-    if (hasWorker(req)) return res.json({ ok: true, ...(await localCmd(req, 'testcasessavecurrent', {}, 5000) || {}) });
+    if (hasWorker(req)) return res.json({ ok: true, ...(await localCmd(req, 'testcasessavecurrent', req.body, 5000) || {}) });
+    const { groupIndex = 0, tcIndex = 0, steps } = req.body || {};
+    const data = tcLoad(req);
+    const grp  = data[groupIndex];
+    if (!grp) return res.status(400).json({ ok: false, error: 'group not found' });
+    const cases = grp.cases || grp.testCases || [];
+    if (!cases[tcIndex]) return res.status(400).json({ ok: false, error: 'test case not found' });
+    cases[tcIndex] = { ...cases[tcIndex], steps: steps ?? seqLoad(req) };
+    if (!grp.cases) grp.testCases = cases; else grp.cases = cases;
+    tcSave(req, data);
     res.json({ ok: true, status: 'current-saved' });
   } catch (e) { wErr(res, e); }
 });
@@ -102,8 +111,12 @@ router.post('/testcases/delete', async (req, res) => {
     if (hasWorker(req)) return res.json({ ok: true, ...(await localCmd(req, 'testcasesdelete', req.body, 5000) || {}) });
     const data  = tcLoad(req);
     const { groupIndex, testCaseIndex } = req.body || {};
-    if (testCaseIndex !== undefined && data[groupIndex]?.cases) {
-      data[groupIndex].cases.splice(testCaseIndex, 1);
+    if (testCaseIndex !== undefined && groupIndex !== undefined) {
+      const grp = data[groupIndex];
+      if (grp) {
+        const cases = grp.cases || grp.testCases;
+        if (cases) cases.splice(testCaseIndex, 1);
+      }
     } else if (groupIndex !== undefined) {
       data.splice(groupIndex, 1);
     }

@@ -7,6 +7,7 @@ const state = {
   captureRows: [],
   captureTimer: null,
   serialTimer: null,
+  seqPollTimer: null,
   serialConnected: false,
   selectedGroupIdx: 0,
   selectedTcIdx: null,
@@ -545,6 +546,7 @@ function renderTcTree(groups) {
       ${(g.cases || g.testCases || []).map((t, ti) => `
         <div class="tc-item" data-group="${gi}" data-tc="${ti}">
           <span>${esc(t.name)}</span><small>${t.itemCount ?? (t.steps||[]).length} steps</small>
+          <button class="small danger tc-del-item" data-group="${gi}" data-tc="${ti}" style="margin-left:auto;padding:1px 4px;font-size:9px;flex-shrink:0;">✕</button>
         </div>`).join('')}
     </div>`).join('');
   root.querySelectorAll('.tc-item').forEach(el => el.addEventListener('click', async () => {
@@ -576,6 +578,14 @@ function renderTcTree(groups) {
   root.querySelectorAll('.tc-del-group').forEach(btn => btn.addEventListener('click', async () => {
     if (!confirm('Delete this group?')) return;
     await api('/api/testcases/delete', { method: 'POST', body: JSON.stringify({ groupIndex: Number(btn.dataset.group) }) });
+    await loadTestCases();
+  }));
+  root.querySelectorAll('.tc-del-item').forEach(btn => btn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    if (!confirm('Delete this test case?')) return;
+    await api('/api/testcases/delete', { method: 'POST', body: JSON.stringify({
+      groupIndex: Number(btn.dataset.group), testCaseIndex: Number(btn.dataset.tc)
+    }) });
     await loadTestCases();
   }));
 }
@@ -638,15 +648,29 @@ async function addTcGroup() {
 async function addTcFromCurrent() {
   const name = $('tcName')?.value.trim();
   if (!name) { toast('Enter TC name', 'warn'); return; }
-  await api('/api/testcases/add', { method: 'POST', body: JSON.stringify({ groupIndex: state.selectedGroupIdx || 0, name }) });
-  $('tcName').value = '';
-  await loadTestCases();
+  try {
+    const seqData = await api('/api/sequence/full');
+    const steps = seqData.items || [];
+    await api('/api/testcases/add', { method: 'POST', body: JSON.stringify({
+      groupIndex: state.selectedGroupIdx || 0, name, steps
+    }) });
+    $('tcName').value = '';
+    await loadTestCases();
+    toast(`TC "${name}" saved (${steps.length} step${steps.length !== 1 ? 's' : ''})`, 'ok');
+  } catch (err) { toast(`Add TC failed: ${err.message}`, 'bad'); }
 }
 
 async function saveTcCurrent() {
+  if (state.selectedTcIdx == null) { toast('Select a TC first', 'warn'); return; }
   try {
-    await api('/api/testcases/save-current', { method: 'POST', body: '{}' });
-    toast('Saved', 'ok');
+    const seqData = await api('/api/sequence/full');
+    const steps = seqData.items || [];
+    await api('/api/testcases/save-current', { method: 'POST', body: JSON.stringify({
+      groupIndex: state.selectedGroupIdx ?? 0,
+      tcIndex: state.selectedTcIdx,
+      steps,
+    }) });
+    toast(`Saved ${steps.length} step${steps.length !== 1 ? 's' : ''}`, 'ok');
     await loadTestCases();
   } catch (err) { toast(`Save failed: ${err.message}`, 'bad'); }
 }
@@ -730,9 +754,25 @@ function closeEventModal() {
 
 async function runSequence() {
   try {
-    const data = await api('/api/sequence/run', { method:'POST', body:'{}' });
+    if (state.seqPollTimer) { clearInterval(state.seqPollTimer); state.seqPollTimer = null; }
+    await api('/api/sequence/run', { method:'POST', body:'{}' });
     appendSeqTerm(`▶ Sequence started`);
-    toast('Sequence started', 'ok');
+    toast('Sequence running…', 'ok');
+    state.seqPollTimer = setInterval(async () => {
+      try {
+        const st = await api('/api/auto/status');
+        if (!st.running) {
+          clearInterval(state.seqPollTimer);
+          state.seqPollTimer = null;
+          const res = await api('/api/auto/results');
+          const rows = res.rows || [];
+          appendSeqTerm(`■ ${st.result || 'Done'}  ${st.statusText || st.status || ''}`);
+          for (const r of rows) {
+            appendSeqTerm(`  ${r.result === 'PASS' ? '✓' : '✗'} [${r.step}] ${r.name || ''}${r.detail ? '  ' + r.detail : ''}`);
+          }
+        }
+      } catch { clearInterval(state.seqPollTimer); state.seqPollTimer = null; }
+    }, 800);
   } catch(err) { toast(`Run failed: ${err.message}`, 'bad'); }
 }
 
@@ -768,7 +808,7 @@ async function refreshRegStatus() {
   try {
     const data = await api('/api/register/status');
     if ($('regStatus')) {
-      $('regStatus').textContent = `${data.serialConnected ? '● connected' : '○ disconnected'} — base ${data.baseAddress || '0x0'}`;
+      $('regStatus').textContent = `${(data.connected || data.serialConnected) ? '● connected' : '○ disconnected'} — base ${data.baseAddress || '0x0'}`;
     }
     if (data.baseAddress !== undefined && $('regBaseAddr')) {
       const b = typeof data.baseAddress === 'number'
@@ -2218,7 +2258,7 @@ async function init() {
     try {
       const data = await api('/api/register/status');
       const el = $('settingsWorkerState');
-      if (el) el.textContent = `${data.serialConnected ? '● connected' : '○ disconnected'}  base: ${data.baseAddress || '—'}`;
+      if (el) el.textContent = `${(data.connected || data.serialConnected) ? '● connected' : '○ disconnected'}  base: ${data.baseAddress || '—'}`;
       if ($('settingsBaseAddr') && data.baseAddress) $('settingsBaseAddr').value = data.baseAddress;
     } catch(err) { if ($('settingsWorkerState')) $('settingsWorkerState').textContent = `offline: ${err.message}`; }
   });
