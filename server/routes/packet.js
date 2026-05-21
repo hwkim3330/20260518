@@ -34,7 +34,17 @@ router.post('/build', async (req, res) => {
     if (hasWorker(req)) {
       try {
         const data = await req.app.locals.localCmd('build', req.body || {});
-        return res.json({ ok: true, ...(data || {}), stdout: data || {} });
+        // C# worker may omit frameHex/frameLength — supplement with local build
+        if (!data.frameHex) {
+          try {
+            const { buildFrame, normalizeProfile } = require('../services/frameBuilder');
+            const frame = buildFrame(normalizeProfile(req.body || {}));
+            data.frameHex = frame.toString('hex');
+            data.frameLength = data.frameLength || data.frameLen || frame.length;
+          } catch {}
+        }
+        data.frameLength = data.frameLength || data.frameLen || data.decoded?.length || 0;
+        return res.json({ ok: true, ...data, stdout: data });
       } catch (e) {
         // Fall through to local builder on any worker error (unsupported protocol, null ref, etc.)
         if (!e.workerError) throw e;
